@@ -269,3 +269,6 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
   .panel.show-routes .plans::-webkit-scrollbar { display: none; }
   .panel.show-routes .plan { flex: none; width: calc(100% - 44px); margin-bottom: 0; scroll-snap-align: start; scroll-snap-stop: always; align-self: flex-start; }
 }
+
+/* While a ride is on, the whole menu is out of the way; ending the ride brings it back. */
+.app.riding .panel, .app.riding .back-fab { display: none; }

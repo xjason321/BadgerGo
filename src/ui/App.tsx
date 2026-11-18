@@ -317,7 +317,7 @@ export function App() {
   const left = leg && ride.pos ? formatDistance(haversine(ride.pos, leg.to)) : null;
 
   return (
-    <div className={`app${ride.active ? " riding" : ""}`} style={{ ["--sheet-h" as string]: `${sheetH}px` }}>
+    <div className={`app${ride.active ? " riding" : ""}`} style={{ ["--sheet-h" as string]: `${ride.active ? 0 : sheetH}px` }}>
       <MapView
         center={MAP_CENTER}
         stations={stations}
@@ -327,7 +327,7 @@ export function App() {
         boundary={boundary}
         pin={menu}
         focus={focus}
-        coveredBottom={isPhone() ? Math.min(sheetH, Math.round(vh * 0.6)) : 0}
+        coveredBottom={isPhone() && !ride.active ? Math.min(sheetH, Math.round(vh * 0.6)) : 0}
         onMapClick={onMapClick}
         onLongPress={onLongPress}
         onMovePoint={onMovePoint}

@@ -25,6 +25,7 @@ type Target = "origin" | "destination";
 type Snap = "peek" | "half" | "full";
 
 /** Bottom-sheet heights on phones (px or fraction of the screen). */
+const FORM_PEEK = 44; // px of the start menu left showing when it is pushed down
 const sheetPx = (snap: Snap, vh: number) => (snap === "peek" ? 150 : snap === "half" ? Math.round(vh * 0.54) : Math.round(vh * 0.92));
 /** 65 -> "1 h 5 min", 35 -> "35 min". */
 const hm = (m: number) => {
@@ -61,6 +62,8 @@ export function App() {
   const [vh, setVh] = useState(() => window.innerHeight);
   const [dragH, setDragH] = useState<number | null>(null);
   const drag = useRef<{ y: number; h: number; moved: boolean } | null>(null);
+  const [formHidden, setFormHidden] = useState(false); // the start menu pushed down so only its handle shows
+  const [formDrag, setFormDrag] = useState<number | null>(null);
   useEffect(() => {
     const on = () => setVh(window.innerHeight);
     window.addEventListener("resize", on);
@@ -76,7 +79,7 @@ export function App() {
   const [levels, setLevels] = useState<number[] | null>(null); // how far down the panel is pushed at each height (px)
   const [slideDrag, setSlideDrag] = useState<number | null>(null); // finger-following offset while dragging
   const touch = useRef<{ x: number; y: number; vert: boolean } | null>(null);
-  const sheetH = levels && fitH ? Math.max(120, fitH - levels[detail]) : fitH || (dragH ?? sheetPx(snap, vh));
+  const sheetH = levels && fitH ? Math.max(120, fitH - levels[detail]) : isPhone() && plans.length === 0 && formHidden ? FORM_PEEK : fitH || (dragH ?? sheetPx(snap, vh));
 
   // Light / dark theme: remembered, and starts from the phone's own setting.
   const [dark, setDark] = useState(() => {
@@ -97,6 +100,8 @@ export function App() {
   }, []);
   const fitForm = phone && plans.length === 0;
   const slidingRoutes = phone && plans.length > 0;
+  useEffect(() => { if (!fitForm) { setFormHidden(false); setFormDrag(null); } }, [fitForm]);
+  const hiddenY = Math.max(0, fitH - FORM_PEEK);
   useLayoutEffect(() => {
     const panel = panelEl.current;
     if (!panel || !slidingRoutes) { setLevels(null); return; }
@@ -242,7 +247,14 @@ export function App() {
     return () => { el.removeEventListener("wheel", onWheel); window.removeEventListener("keydown", onKey); };
   }, [phone, plans.length]);
   const onGrabDown = (e: React.PointerEvent) => {
-    if (!isPhone() || fitH) return; // the side panel on a laptop, and the content-sized form sheet, don't resize
+    if (!isPhone()) return; // the side panel on a laptop doesn't resize
+    if (fitForm) { // the start menu: drag it down out of the way, drag or tap the handle to bring it back
+      if ((e.target as Element).closest("button")) return;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      drag.current = { y: e.clientY, h: 0, moved: false };
+      return;
+    }
+    if (fitH) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { y: e.clientY, h: sheetPx(snap, vh), moved: false };
   };
@@ -250,12 +262,22 @@ export function App() {
     const d = drag.current;
     if (!d) return;
     if (Math.abs(e.clientY - d.y) > 6) d.moved = true;
+    if (fitForm) {
+      if (d.moved) setFormDrag(Math.max(0, Math.min(hiddenY, (formHidden ? hiddenY : 0) + e.clientY - d.y)));
+      return;
+    }
     if (d.moved) setDragH(Math.min(sheetPx("full", vh), Math.max(110, d.h - (e.clientY - d.y))));
   };
   const onGrabUp = () => {
     const d = drag.current;
     drag.current = null;
     if (!d) return;
+    if (fitForm) {
+      if (!d.moved) { if (formHidden) setFormHidden(false); } // a tap on the peeking handle brings the menu back
+      else if (formDrag != null) setFormHidden(formDrag > hiddenY * 0.35);
+      setFormDrag(null);
+      return;
+    }
     if (!d.moved) {
       setSnap(snap === "peek" ? "half" : snap === "half" ? "full" : "half"); // a tap steps through the sizes
     } else if (dragH != null) {
@@ -596,7 +618,7 @@ export function App() {
         </div>
       )}
       {themeBtn("on-desktop")}
-      <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null ? " dragging" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
+      <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null || formDrag != null ? " dragging" : ""}${fitForm && formHidden ? " hidden-form" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={fitForm ? ({ transform: `translateY(${formDrag ?? (formHidden ? hiddenY : 0)}px)` } as React.CSSProperties) : levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
         <button className="panel-back" onClick={goBack}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
           Back

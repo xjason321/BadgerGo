@@ -592,3 +592,9 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .nav-dock .nav-more { justify-content: center; border-top: 0; padding-top: 0; }
 
 .nav-dock .nav-leg { gap: 6px; }
+
+@media (max-width: 899px) {
+  .panel.fit { transition: transform .28s cubic-bezier(.22,.8,.3,1), height .25s ease; }
+  .panel.fit.dragging { transition: none; }
+  .panel.fit .grab { padding: 14px 0 22px; } /* a roomier handle to grab */
+}

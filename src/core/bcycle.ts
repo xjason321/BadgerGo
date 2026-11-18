@@ -13,3 +13,10 @@ export function bcycleUrl(s: Pick<Station, "id" | "rentalUris">, ios: boolean, s
 }
 
 export const isIos = (ua = typeof navigator === "undefined" ? "" : navigator.userAgent) => /iPad|iPhone|iPod/.test(ua);
+
+/** Google Maps pin for a dock (opens in the Google Maps app on phones, in the browser on a computer). */
+export const googleMapsUrl = (s: Pick<Station, "lat" | "lon">) =>
+  `https://www.google.com/maps/search/?api=1&query=${s.lat.toFixed(6)},${s.lon.toFixed(6)}`;
+
+/** A computer with a mouse. The BCycle app links only work on phones, so computers get Google Maps instead. */
+export const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;

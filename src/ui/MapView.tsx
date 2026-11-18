@@ -480,12 +480,39 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     });
     if (fitted.current !== plan) {
       fitted.current = plan; // zoom to the route once per route, not again when only the theme changed
-      map.current?.fitBounds(L.featureGroup(lines).getBounds().pad(0.15), {
+      planBounds.current = L.featureGroup(lines).getBounds().pad(0.15);
+      autoFit.current = true;
+      map.current?.fitBounds(planBounds.current, {
         paddingTopLeft: [coverLeftRef.current, 0],
         paddingBottomRight: [0, coverRef.current],
       });
     }
   }, [plan, dark]);
+
+  // The route cards slide in after the route is drawn and change how much of the map is covered, so re-centre
+  // the route in what's left, until the rider moves the map themselves.
+  const planBounds = useRef<L.LatLngBounds | null>(null);
+  const autoFit = useRef(false);
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    const stop = () => { autoFit.current = false; };
+    const c = m.getContainer();
+    c.addEventListener("pointerdown", stop);
+    c.addEventListener("wheel", stop, { passive: true });
+    return () => { c.removeEventListener("pointerdown", stop); c.removeEventListener("wheel", stop); };
+  }, []);
+  useEffect(() => {
+    const m = map.current;
+    if (leg) autoFit.current = false; // ride mode frames the current leg itself
+    if (!m || !autoFit.current || !planBounds.current || !plan) return;
+    const t = setTimeout(() => {
+      if (!autoFit.current || !planBounds.current) return;
+      m.invalidateSize();
+      m.fitBounds(planBounds.current, { paddingTopLeft: [coveredLeft, 0], paddingBottomRight: [0, coveredBottom], animate: true });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [coveredBottom, coveredLeft, plan, leg]);
 
   useEffect(() => {
     const m = map.current;

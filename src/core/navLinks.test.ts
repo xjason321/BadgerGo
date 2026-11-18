@@ -80,3 +80,14 @@ describe("links", () => {
     expect(legAfterFix([leg], 0, { lat: 43.08, lon: -89.38 })).toBe(0);
   });
 });
+
+describe("navLegs for a walk-only plan", () => {
+  it("is one walk to the destination and does not throw without docks", () => {
+    const walk = { mode: "walk", durationMin: 9, distanceM: 700, geometry: [[43.07, -89.4], [43.071, -89.39]] } as unknown as Plan["walkToDock"];
+    const none = { mode: "walk", durationMin: 0, distanceM: 0, geometry: [] } as unknown as Plan["walkToDock"];
+    const p = { stations: [], rides: [], walkToDock: walk, walkFromDock: none, walkOnly: true } as unknown as Plan;
+    const legs = navLegs(p, { lat: 43.071, lon: -89.39 }, "Union South");
+    expect(legs).toHaveLength(1);
+    expect(legs[0]).toMatchObject({ kind: "walk", toName: "Union South", final: true });
+  });
+});

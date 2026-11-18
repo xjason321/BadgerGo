@@ -154,6 +154,11 @@ function rideLegs(plan: Plan, j: number, maxVia: number): NavLeg[] {
 export function navLegs(plan: Plan, destination: LatLng, destinationName = "your destination", maxVia = GOOGLE_VIA): NavLeg[] {
   const legs: NavLeg[] = [];
   const st = plan.stations;
+  if (plan.walkOnly || !st.length) { // "just walk there": no docks, one walk straight to the destination
+    if (plan.walkToDock.geometry.length)
+      legs.push({ kind: "walk", to: destination, toName: destinationName, atStop: true, minutes: plan.walkToDock.durationMin, meters: plan.walkToDock.distanceM, geometry: plan.walkToDock.geometry, via: [], final: true });
+    return legs;
+  }
   if (plan.walkToDock.geometry.length)
     legs.push({ kind: "walk", to: st[0], toName: st[0].name, atStop: true, minutes: plan.walkToDock.durationMin, meters: plan.walkToDock.distanceM, geometry: plan.walkToDock.geometry, via: [] });
   plan.rides.forEach((_, j) => legs.push(...rideLegs(plan, j, maxVia)));

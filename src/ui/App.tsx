@@ -172,8 +172,17 @@ export function App() {
   };
   const selectCard = (i: number) => {
     setSelected(i);
-    if (isPhone()) cardAt(i)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
-    else { progUntil.current = Date.now() + 700; cardAt(i)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); }
+    // Scroll only the strip sideways. scrollIntoView also scrolls the page/panel vertically, which left the sheet
+    // offset and made every later drag of it jump.
+    const el = strip.current, card = cardAt(i);
+    if (!el || !card) return;
+    if (isPhone()) {
+      el.scrollTo({ left: card.offsetLeft - parseFloat(getComputedStyle(el).scrollPaddingLeft || "0"), behavior: "smooth" });
+      setDetail(2); // show the whole card, buttons included
+    } else {
+      progUntil.current = Date.now() + 700;
+      el.scrollTo({ left: card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2, behavior: "smooth" });
+    }
   };
   // Laptops: drag the strip sideways with the mouse; on release it snaps to the nearest card.
   const stripDrag = useRef<{ x: number; last: number; left: number; moved: boolean; id: number; from: number } | null>(null);
@@ -619,10 +628,6 @@ export function App() {
       )}
       {themeBtn("on-desktop")}
       <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null || formDrag != null ? " dragging" : ""}${fitForm && formHidden ? " hidden-form" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={fitForm ? ({ transform: `translateY(${formDrag ?? (formHidden ? hiddenY : 0)}px)` } as React.CSSProperties) : levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
-        <button className="panel-back" onClick={goBack}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
-          Back
-        </button>
         <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
           <span />
         </div>
@@ -700,9 +705,15 @@ export function App() {
             {busy ? "Working…" : "Find routes"}
           </button>
           {plans.length > 0 && !ride.active && (
-            <h2 className="trip-title">
-              {(text.origin || origin?.label.split(",")[0] || "Start")} to {(text.destination || destination?.label.split(",")[0] || "End")}
-            </h2>
+            <div className="trip-head">
+              <h2 className="trip-title">
+                {(text.origin || origin?.label.split(",")[0] || "Start")} to {(text.destination || destination?.label.split(",")[0] || "End")}
+              </h2>
+              <button className="panel-back" onClick={goBack}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+                Back
+              </button>
+            </div>
           )}
           {(status || canRefresh || refreshing) && <p className="status">
             {status}

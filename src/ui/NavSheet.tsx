@@ -58,7 +58,7 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight }:
   return (
     <div className="nav-dock" ref={el} role="region" aria-label="Your trip">
       <button className="nav-x" onClick={onStop} aria-label="End ride mode"><CloseIcon size={18} /></button>
-      <ol className="nav-steps" aria-label="Trip legs">
+      <ol className="nav-steps" aria-label="Trip legs" style={{ "--n": legs.length } as React.CSSProperties}>
         {legs.map((l, i) => (
           <li key={i} className={i < index ? "past" : i === index ? "now" : ""}>
             <span className="dot">{i < index ? <CheckIcon size={12} /> : l.kind === "ride" ? <BikeIcon size={13} /> : <WalkIcon size={13} />}</span>

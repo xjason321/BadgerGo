@@ -605,3 +605,11 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 
 .trip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .trip-head .trip-title { flex: 1; min-width: 0; margin-top: 4px; }
+
+/* Many legs: the dots shrink and the connectors stretch so the row always fits beside the ✕ */
+.nav-dock .nav-steps { --d: clamp(14px, calc(210px / var(--n, 3)), 24px); gap: 0; min-width: 0; }
+.nav-dock .nav-steps li { min-width: 0; }
+.nav-dock .nav-steps li + li { flex: 1 1 0; }
+.nav-dock .nav-steps li + li::before { flex: 1 1 0; width: auto; min-width: 3px; margin: 0 3px; }
+.nav-dock .nav-steps .dot { flex: none; width: var(--d); height: var(--d); }
+.nav-dock .nav-steps .dot svg { width: calc(var(--d) * .55); height: calc(var(--d) * .55); }

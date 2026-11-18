@@ -14,8 +14,8 @@ export const KINDS: BikewayKind[] = [
   { id: "sidepath", label: "Side path", color: "#5aa469" },
   { id: "separated", label: "Separated bike lane", color: "#00a5a5" },
   { id: "lane", label: "Bike lane", color: "#2f6fed" },
-  { id: "shoulder", label: "Shoulder", color: "#e9a100" },
-  { id: "shared", label: "Shared lane", color: "#c2410c" },
+  { id: "shoulder", label: "Shoulder", color: "#9bc72a" },
+  { id: "shared", label: "Shared lane", color: "#f5c400" },
 ];
 
 export interface TraceEdge {

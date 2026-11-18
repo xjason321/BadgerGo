@@ -36,3 +36,5 @@ export const SearchIcon = I(<><circle cx="11" cy="11" r="6.5" /><path d="m16 16 
 export const ExternalIcon = I(<><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></>);
 export const CloseIcon = I(<><path d="M6 6l12 12M18 6 6 18" /></>);
 export const FlagIcon = I(<><path d="M6 21V4M6 5h11l-2 3.5 2 3.5H6" /></>);
+export const SunIcon = I(<><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" /></>);
+export const MoonIcon = I(<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />);

@@ -22,6 +22,9 @@ interface Props {
   focus?: { lat: number; lon: number; n: number } | null;
   /** Extra space at the bottom the panel covers (px), so popups aren't hidden behind it. */
   coveredBottom: number;
+  /** Laptops: width of the route wheel sitting over the bottom-left of the map. */
+  coveredLeft?: number;
+  dark?: boolean;
   onMapClick: (lat: number, lon: number) => void;
   onLongPress: (lat: number, lon: number) => void;
   /** Desktop only: the start or end marker was dragged to a new spot. */
@@ -130,7 +133,7 @@ function centerOnMe(m: L.Map, cover: number, me: { lat: number; lon: number }, a
   m.panBy(have.subtract(want), { animate, duration: 0.4 });
 }
 
-export function MapView({ center, stations, origin, destination, plan, boundary, pin, focus, coveredBottom, onMapClick, onLongPress, onMovePoint, me, follow, heading, compass, onUserPan, loadedAt = 0, refreshing = false, onRefresh }: Props) {
+export function MapView({ center, stations, origin, destination, plan, boundary, pin, focus, coveredBottom, coveredLeft = 0, dark = false, onMapClick, onLongPress, onMovePoint, me, follow, heading, compass, onUserPan, loadedAt = 0, refreshing = false, onRefresh }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const stationLayer = useRef(L.layerGroup());
@@ -151,6 +154,8 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
   moveRef.current = onMovePoint;
   panRef.current = onUserPan;
   coverRef.current = coveredBottom;
+  const coverLeftRef = useRef(coveredLeft);
+  coverLeftRef.current = coveredLeft;
   meRef.current = me;
   const [zoom, setZoom] = useState(13);
 
@@ -363,11 +368,12 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     }
   }, [pin]);
 
+  const fitted = useRef<unknown>(null);
   useEffect(() => {
     const g = routeLayer.current;
     g.clearLayers();
     if (!plan) return;
-    const walk = { color: "#555", weight: 4, dashArray: "2 8", opacity: 0.9 };
+    const walk = { color: dark ? "#d5e3da" : "#555", weight: 4, dashArray: "2 8", opacity: 0.9 };
     const over = !plan.withinLimit;
     const lines: L.Polyline[] = [L.polyline(plan.walkToDock.geometry, walk).addTo(g)];
     plan.rides.forEach((ride, i) => {
@@ -402,10 +408,14 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
           .addTo(g);
       }
     });
-    map.current?.fitBounds(L.featureGroup(lines).getBounds().pad(0.15), {
-      paddingBottomRight: [0, coverRef.current],
-    });
-  }, [plan]);
+    if (fitted.current !== plan) {
+      fitted.current = plan; // zoom to the route once per route, not again when only the theme changed
+      map.current?.fitBounds(L.featureGroup(lines).getBounds().pad(0.15), {
+        paddingTopLeft: [coverLeftRef.current, 0],
+        paddingBottomRight: [0, coverRef.current],
+      });
+    }
+  }, [plan, dark]);
 
   useEffect(() => {
     const m = map.current;

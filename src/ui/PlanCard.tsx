@@ -3,6 +3,7 @@ import { trafficExposure } from "../core/planner";
 import { overageCost } from "../core/pricing";
 import { STUDENT_PLAN, type Plan } from "../core/types";
 import { AlertIcon, BikeIcon, CheckIcon, ClockIcon, DollarIcon, RouteIcon, SwapIcon, WalkIcon } from "./icons";
+import { ElevationProfile } from "./ElevationProfile";
 import { RoadBar } from "./RoadBar";
 
 const min = (m: number) => `${Math.max(1, Math.round(m))} min`;
@@ -49,7 +50,7 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect }: P
         <div><ClockIcon /><b>{min(p.totalMinutes)}</b><span>total</span></div>
         <div>
           <BikeIcon /><b>{min(p.rideMinutes)}</b>
-          <span>{swaps > 0 ? `riding · ${min(p.longestRideMinutes)} max` : "riding"}</span>
+          <span>riding</span>
         </div>
         <div><RouteIcon /><b>{miles(dist)} mi</b><span>distance</span></div>
       </div>
@@ -86,6 +87,8 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect }: P
           </div>
         </li>
       </ol>
+
+      <ElevationProfile plan={p} />
 
       {swaps > 0 && (
         <div className="note info">
@@ -132,6 +135,7 @@ function WalkCard({ plan: p, index, selected, onSelect }: Pick<Props, "plan" | "
           </div>
         </li>
       </ol>
+      <ElevationProfile plan={p} />
       <div className="note info"><WalkIcon size={15} /><span>No bike needed. Ignores the ride limit and terrain preferences.</span></div>
     </li>
   );

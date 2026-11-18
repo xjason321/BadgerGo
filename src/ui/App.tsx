@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BOUNDARY_OSM_ID, MAP_CENTER, SEARCH_VIEWBOX, SYSTEM_ID } from "../config";
 import { KINDS } from "../core/bikeways";
 import { loadBoundary, type Boundary } from "../core/boundary";
@@ -12,7 +12,7 @@ import { planRoutes, rankPlans } from "../core/planner";
 import { analyzePlan, strictRefiner } from "../core/roads";
 import { FallbackProvider, OsrmProvider, ValhallaProvider } from "../core/routing";
 import { DEFAULT_PREFS, STUDENT_PLAN, type Place, type Plan, type RoadPrefs, type Station } from "../core/types";
-import { BikeIcon, PinIcon, SearchIcon, TargetIcon, WalkIcon } from "./icons";
+import { BikeIcon, MoonIcon, PinIcon, SearchIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
 import { haversine } from "../core/geo";
 import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
@@ -63,15 +63,98 @@ export function App() {
     return () => window.removeEventListener("resize", on);
   }, []);
   const isPhone = () => window.matchMedia("(max-width: 899px)").matches;
-  const sheetH = dragH ?? sheetPx(snap, vh);
+  // Phone form screen: the sheet is only as tall as its content (measured below); route screens keep the drag-to-resize sheet.
+  const [fitH, setFitH] = useState(0);
+  const panelEl = useRef<HTMLElement>(null);
+  // Phone routes screen: the cards sit in a panel that slides up and down, snapping at three heights
+  // (0: the title and stats, 1: + the timeline, 2: everything). The rest of the card waits below the screen edge.
+  const [detail, setDetail] = useState(0);
+  const [levels, setLevels] = useState<number[] | null>(null); // how far down the panel is pushed at each height (px)
+  const [slideDrag, setSlideDrag] = useState<number | null>(null); // finger-following offset while dragging
+  const touch = useRef<{ x: number; y: number; vert: boolean } | null>(null);
+  const sheetH = levels && fitH ? Math.max(120, fitH - levels[detail]) : fitH || (dragH ?? sheetPx(snap, vh));
 
-  const goBack = () => { setPlans([]); setSelected(0); setBackup(""); setStatus("Routes cleared. Change your trip and search again."); };
+  // Light / dark theme: remembered, and starts from the phone's own setting.
+  const [dark, setDark] = useState(() => {
+    try { const v = localStorage.getItem("badgergo-theme"); if (v) return v === "dark"; } catch { /* private mode */ }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#07170e" : "#0b3b25");
+    try { localStorage.setItem("badgergo-theme", dark ? "dark" : "light"); } catch { /* ignore */ }
+  }, [dark]);
+  const [phone, setPhone] = useState(() => window.matchMedia("(max-width: 899px)").matches);
+  useEffect(() => {
+    const q = window.matchMedia("(max-width: 899px)");
+    const on = () => setPhone(q.matches);
+    q.addEventListener("change", on);
+    return () => q.removeEventListener("change", on);
+  }, []);
+  const fitForm = phone && plans.length === 0;
+  const slidingRoutes = phone && plans.length > 0;
+  useLayoutEffect(() => {
+    const panel = panelEl.current;
+    if (!panel || !slidingRoutes) { setLevels(null); return; }
+    const card = (panel.querySelector(".plan.sel") ?? panel.querySelector(".plan")) as HTMLElement | null;
+    if (!card) return;
+    const c = card.getBoundingClientRect(), pr = panel.getBoundingClientRect();
+    const top = c.top - pr.top; // the panel's own transform cancels out of these differences
+    const H = panel.offsetHeight;
+    const at = (sel: string, extra: number) => {
+      const el = card.querySelector(sel) as HTMLElement | null;
+      return el ? el.getBoundingClientRect().bottom - c.top + extra : c.height;
+    };
+    const shown = [at(".stats", 16), at(".tl", 16), c.height + 14];
+    setLevels(shown.map((v, i) => (i === 2 ? 0 : Math.max(0, Math.round(H - (top + v + 14))))));
+  }, [slidingRoutes, plans, selected, fitH]);
+  useEffect(() => {
+    const el = panelEl.current;
+    if (!el || !phone) { setFitH(0); return; }
+    const ro = new ResizeObserver(() => setFitH(el.offsetHeight));
+    ro.observe(el);
+    setFitH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [phone]);
+  const [advanced, setAdvanced] = useState(false);
+  const themeBtn = (cls: string) => (
+    <button
+      className={`theme-btn ${cls}`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={() => setDark((d) => !d)}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {dark ? <SunIcon size={20} /> : <MoonIcon size={20} />}
+    </button>
+  );
+
+  // What the current routes were computed from: Find routes stays off until one of these changes.
+  const sigOf = (o: Place | null, d: Place | null) =>
+    JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, prefs]);
+  const [doneSig, setDoneSig] = useState("");
+  useEffect(() => { if (strip.current) strip.current.scrollLeft = 0; }, [plans]);
+  const goBack = () => { setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
   // On phones the route cards sit in a sideways, snapping strip: swiping to a card selects it, tapping a card scrolls it into view.
   const strip = useRef<HTMLUListElement>(null);
   const cardAt = (i: number) => strip.current?.children[i] as HTMLElement | undefined;
+  const progUntil = useRef(0); // ignore scroll events while we scroll a card into place ourselves
   const onStripScroll = () => {
     const el = strip.current;
-    if (!el || !isPhone() || !el.children.length) return;
+    if (!el || !el.children.length) return;
+    if (!isPhone()) {
+      // Laptops: the card nearest the middle of the strip is the chosen one.
+      if (Date.now() < progUntil.current) return;
+      const mid = el.scrollLeft + el.clientWidth / 2;
+      let best = 0, bestD = Infinity;
+      Array.from(el.children).forEach((c, i) => {
+        const h = c as HTMLElement;
+        const d = Math.abs(h.offsetLeft + h.offsetWidth / 2 - mid);
+        if (d < bestD) { bestD = d; best = i; }
+      });
+      setSelected((cur) => (cur === best ? cur : best));
+      return;
+    }
     const first = el.children[0] as HTMLElement;
     const stride = first.offsetWidth + 12;
     const i = Math.max(0, Math.min(el.children.length - 1, Math.round(el.scrollLeft / stride)));
@@ -80,9 +163,80 @@ export function App() {
   const selectCard = (i: number) => {
     setSelected(i);
     if (isPhone()) cardAt(i)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    else { progUntil.current = Date.now() + 700; cardAt(i)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); }
   };
+  // Laptops: drag the strip sideways with the mouse; on release it snaps to the nearest card.
+  const stripDrag = useRef<{ x: number; last: number; left: number; moved: boolean; id: number; from: number } | null>(null);
+  const justDragged = useRef(false);
+  const onStripDown = (e: React.PointerEvent<HTMLUListElement>) => {
+    if (phone || e.pointerType !== "mouse" || e.button !== 0) return;
+    stripDrag.current = { x: e.clientX, last: e.clientX, left: e.currentTarget.scrollLeft, moved: false, id: e.pointerId, from: selected };
+  };
+  const onStripMove = (e: React.PointerEvent<HTMLUListElement>) => {
+    const d = stripDrag.current, el = strip.current;
+    if (!d || !el) return;
+    d.last = e.clientX;
+    if (!d.moved) {
+      if (Math.abs(e.clientX - d.x) < 4) return;
+      d.moved = true;
+      progUntil.current = Number.MAX_SAFE_INTEGER; // no selection changes mid-drag: that was the jitter
+      el.setPointerCapture(d.id);
+      el.style.scrollSnapType = "none";
+      el.style.cursor = "grabbing";
+    }
+    el.scrollLeft = d.left - (e.clientX - d.x);
+  };
+  const onStripUp = () => {
+    const d = stripDrag.current, el = strip.current;
+    stripDrag.current = null;
+    if (!d?.moved || !el) return;
+    justDragged.current = true;
+    setTimeout(() => (justDragged.current = false), 0);
+    // Any real drag moves one card in the direction it was dragged, however short; a long drag lands on the nearest card.
+    const dx = d.x - d.last;
+    const mid = el.scrollLeft + el.clientWidth / 2;
+    let best = 0, bestD = Infinity;
+    Array.from(el.children).forEach((c, i) => {
+      const h = c as HTMLElement;
+      const dist = Math.abs(h.offsetLeft + h.offsetWidth / 2 - mid);
+      if (dist < bestD) { bestD = dist; best = i; }
+    });
+    let target = best;
+    if (best === d.from && Math.abs(dx) >= 4) target = d.from + (dx > 0 ? 1 : -1);
+    target = Math.max(0, Math.min(el.children.length - 1, target));
+    el.style.scrollSnapType = "";
+    el.style.cursor = "";
+    progUntil.current = 0;
+    selectCard(target);
+  };
+  const step = (d: number) => selectCard(Math.max(0, Math.min(plans.length - 1, selected + d)));
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  // Laptops: scroll wheel and arrow keys move one card at a time.
+  useEffect(() => {
+    const el = strip.current;
+    if (!el || phone || !plans.length) return;
+    let last = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // sideways trackpad swipes scroll natively
+      e.preventDefault();
+      const now = Date.now();
+      if (now - last < 280 || Math.abs(e.deltaY) < 4) return;
+      last = now;
+      stepRef.current(e.deltaY > 0 ? 1 : -1);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if ((t instanceof Element && t.closest("input, textarea, select, [contenteditable]")) || document.querySelector(".app.riding")) return;
+      if (e.key === "ArrowRight") { e.preventDefault(); stepRef.current(1); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); stepRef.current(-1); }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
+    return () => { el.removeEventListener("wheel", onWheel); window.removeEventListener("keydown", onKey); };
+  }, [phone, plans.length]);
   const onGrabDown = (e: React.PointerEvent) => {
-    if (!isPhone()) return; // the side panel on a laptop doesn't resize
+    if (!isPhone() || fitH) return; // the side panel on a laptop, and the content-sized form sheet, don't resize
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { y: e.clientY, h: sheetPx(snap, vh), moved: false };
   };
@@ -212,7 +366,7 @@ export function App() {
         setText((x) => ({ ...x, origin: "My location" }));
         setFocus({ lat, lon, n: Date.now() });
         setBusy(false);
-        setStatus("Start set to your location. Now pick or search an end point.");
+        setStatus("Where do you want to go?");
         if (!auto) autoGo("origin", { lat, lon, label: "My location" });
       },
       (err) => {
@@ -262,7 +416,7 @@ export function App() {
   const go = async (from: Place | null = origin, to: Place | null = destination) => {
     if (!from || !to) return;
     const [origin, destination] = [from, to]; // an explicit pair wins over state that hasn't updated yet
-    setBusy(true); setPlans([]); setBackup(""); setStatus("Finding routes…");
+    setBusy(true); setPlans([]); setSelected(0); setBackup(""); setStatus("Finding routes…");
     const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
     // Without swaps there is one ride, so the only limit that matters is the free ride time.
     const limit = swapsOn ? maxRide : STUDENT_PLAN.freeMinutes;
@@ -294,7 +448,7 @@ export function App() {
         ? bikeRanked.map((p, i) => ({ ...p, label: `Option ${i + 2} · ${p.label.split(" · ")[1] ?? ""}` }))
         : bikeRanked;
       const ranked = !walkPlan ? bikeRanked : walkFirst ? [walkPlan, ...bikes] : [...bikes, walkPlan];
-      setPlans(ranked); setSelected(0); setBackup(provider.fellBack ? provider.reason || "unavailable" : "");
+      setPlans(ranked); setSelected(0); setDoneSig(sigOf(origin, destination)); setBackup(provider.fellBack ? provider.reason || "unavailable" : "");
       if (isPhone()) setSnap("half");
       const ok = bikeRanked.filter((x) => x.withinLimit).length;
       const walkNote = walkPlan && !walkFirst ? ` Walking directly would take ${hm(walkPlan.totalMinutes)}.` : "";
@@ -337,6 +491,7 @@ export function App() {
         onRefresh={refreshStations}
         follow={ride.follow}
         compass={ride.active}
+        dark={dark}
         heading={ride.active ? ride.heading : null}
         onUserPan={() => ride.setFollow(false)}
       />
@@ -382,13 +537,19 @@ export function App() {
           Back
         </button>
       )}
-      <aside className={`panel${dragH != null ? " dragging" : ""}${plans.length && !ride.active ? " show-routes" : ""}`}>
+      {themeBtn("on-desktop")}
+      <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null ? " dragging" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={levels && slidingRoutes ? { transform: `translateY(${slideDrag ?? levels[detail]}px)` } : undefined}>
+        <button className="panel-back" onClick={goBack}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          Back
+        </button>
         <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
           <span />
         </div>
         <header className="brand" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
           <img src="/badgergo-logo.png" alt="" width={44} height={44} />
-          <h1>BadgerGo</h1>
+          <h1>BadgerGo!</h1>
+          {themeBtn("in-header")}
         </header>
 
         <div className="scroll">
@@ -398,7 +559,7 @@ export function App() {
                 <span className={`dot ${t === "origin" ? "start" : "end"}`} aria-hidden="true" />
                 <input
                   value={text[t]}
-                  placeholder={t === "origin" ? "Start: Chadbourne Hall" : "End: Union South"}
+                  placeholder={t === "origin" ? "Memorial Union" : "Union South"}
                   aria-label={t === "origin" ? "Start" : "End"}
                   onChange={(e) => {
                     setText({ ...text, [t]: e.target.value });
@@ -442,8 +603,8 @@ export function App() {
                 </button>
                 {sugg?.t === t && (
                   <ul className="suggest" role="listbox">
-                    {sugg.items.map((c) => (
-                      <li key={c.name + (c.via ?? "")} role="option" onPointerDown={(e) => { e.preventDefault(); pickCampus(t, c); }}>
+                    {sugg.items.map((c, n) => (
+                      <li key={n + c.name + (c.via ?? "")} role="option" onPointerDown={(e) => { e.preventDefault(); pickCampus(t, c); }}>
                         <b>{c.name}</b>
                         <span>{c.via ? `${c.via} · ` : ""}{c.address || "UW–Madison"}</span>
                       </li>
@@ -455,7 +616,38 @@ export function App() {
             {picking && <p className="hint-line">Tap the map to set the {picking === "origin" ? "start" : "end"}.</p>}
           </section>
 
-          <section className="card form-only">
+          <button className="primary form-only" onClick={() => go()} disabled={!origin || !destination || !stations.length || busy || (plans.length > 0 && sigOf(origin, destination) === doneSig)}>
+            {busy ? "Working…" : "Find routes"}
+          </button>
+          {plans.length > 0 && !ride.active && (
+            <h2 className="trip-title">
+              {(text.origin || origin?.label.split(",")[0] || "Start")} to {(text.destination || destination?.label.split(",")[0] || "End")}
+            </h2>
+          )}
+          {(status || canRefresh || refreshing) && <p className="status">
+            {status}
+            {(canRefresh || refreshing) && (
+              <>
+                {" "}
+                <button className="link-btn" onClick={refreshStations} disabled={refreshing}>
+                  {refreshing ? "Refreshing BCycle data…" : "Refresh BCycle data"}
+                </button>
+              </>
+            )}
+          </p>}
+          {backup && (
+            <p className="status warn">Preference router unavailable ({backup}). Used a backup that ignores road preferences; try again in a few minutes.</p>
+          )}
+
+          <div className="advanced form-only">
+            <button className="adv-toggle" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>
+              <span>Advanced options</span>
+              <span className="adv-sum">{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
+              <svg className={`chev${advanced ? " open" : ""}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            {advanced && (
+              <div className="adv-body">
+          <section className="card">
             <h2>Bike swapping</h2>
             <label className="check">
               <input type="checkbox" checked={swapsOn} onChange={(e) => setSwapsOn(e.target.checked)} />
@@ -471,35 +663,61 @@ export function App() {
             )}
           </section>
 
-          <section className="card form-only">
+          <section className="card">
             <h2>Terrain preferences</h2>
             <TerrainPicker prefs={prefs} onChange={setPrefs} />
           </section>
 
-          <button className="primary form-only" onClick={() => go()} disabled={!origin || !destination || !stations.length || busy}>
-            {busy ? "Working…" : "Find routes"}
-          </button>
-          <p className="status">
-            {status}
-            {(canRefresh || refreshing) && (
-              <>
-                {" "}
-                <button className="link-btn" onClick={refreshStations} disabled={refreshing}>
-                  {refreshing ? "Refreshing BCycle data…" : "Refresh BCycle data"}
-                </button>
-              </>
+              </div>
             )}
-          </p>
-          {backup && (
-            <p className="status warn">Preference router unavailable ({backup}). Used a backup that ignores road preferences; try again in a few minutes.</p>
-          )}
+          </div>
 
-          <ul className="plans" ref={strip} onScroll={onStripScroll}>
-            {plans.map((p, i) => (
-              <PlanCard key={p.id} plan={p} index={i} selected={i === selected} trafficLevel={prefs.traffic} onSelect={() => selectCard(i)} />
-            ))}
-          </ul>
+          <div className="strip-wrap">
+            {!phone && plans.length > 1 && (
+              <button className="strip-arrow left" onClick={() => step(-1)} disabled={selected === 0} aria-label="Previous route">‹</button>
+            )}
+            <ul
+              className="plans"
+              ref={strip}
+              onScroll={onStripScroll}
+              onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, vert: false }; }}
+              onTouchMove={(e) => {
+                const t = touch.current;
+                if (!t || !phone || !levels) return;
+                const fx = e.touches[0].clientX - t.x, fy = e.touches[0].clientY - t.y;
+                if (!t.vert && Math.abs(fy) > 8 && Math.abs(fy) > Math.abs(fx) * 1.2) t.vert = true;
+                if (t.vert) setSlideDrag(Math.max(0, Math.min(levels[0], levels[detail] + fy)));
+              }}
+              onTouchEnd={(e) => {
+                const t = touch.current; touch.current = null;
+                if (!t || !phone || !levels) return;
+                setSlideDrag(null);
+                if (!t.vert) return;
+                const fy = e.changedTouches[0].clientY - t.y;
+                const pos = Math.max(0, Math.min(levels[0], levels[detail] + fy));
+                let best = 0;
+                levels.forEach((y, i) => { if (Math.abs(y - pos) < Math.abs(levels[best] - pos)) best = i; });
+                if (best === detail && Math.abs(fy) > 24) best = Math.max(0, Math.min(2, detail + (fy < 0 ? 1 : -1))); // a flick moves one step
+                setDetail(best);
+              }}
+              onPointerDown={onStripDown}
+              onPointerMove={onStripMove}
+              onPointerUp={onStripUp}
+              onPointerCancel={onStripUp}
+              onClickCapture={(e) => { if (justDragged.current) { e.stopPropagation(); e.preventDefault(); } }}
+            >
+              {plans.map((p, i) => (
+                <PlanCard key={p.id} plan={p} index={i} selected={i === selected} trafficLevel={prefs.traffic} onSelect={() => selectCard(i)} />
+              ))}
+            </ul>
+            {!phone && plans.length > 1 && (
+              <button className="strip-arrow right" onClick={() => step(1)} disabled={selected === plans.length - 1} aria-label="Next route">›</button>
+            )}
+          </div>
         </div>
+        <a className="bcycle-logo" href="https://madison.bcycle.com/" target="_blank" rel="noopener noreferrer" title="Madison BCycle">
+          <img src="/madison-bcycle-logo.png" alt="Madison BCycle" height={30} />
+        </a>
       </aside>
       {menu && (
         <PlaceMenu

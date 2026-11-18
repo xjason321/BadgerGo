@@ -75,7 +75,7 @@ export interface RoadPrefs {
   hills: "avoid" | "normal" | "ok";
 }
 
-export const DEFAULT_PREFS: RoadPrefs = { traffic: 3, strict: false, unpaved: "avoid", hills: "normal" };
+export const DEFAULT_PREFS: RoadPrefs = { traffic: 5, strict: false, unpaved: "avoid", hills: "normal" };
 
 /** What a route runs on, in metres. `byKind` is indexed like KINDS in bikeways.ts. */
 export interface RoadBreakdown {

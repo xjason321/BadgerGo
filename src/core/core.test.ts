@@ -522,3 +522,48 @@ describe("ride mode legs", () => {
     expect(formatDistance(800)).toBe("0.5 mi");
   });
 });
+
+describe("elevation profile", () => {
+  it("climb ignores small wiggles and counts real ups and downs", async () => {
+    const { climb, smooth } = await import("./elevation");
+    expect(climb([100, 100.3, 99.9, 100.2]).gain).toBe(0);
+    const c = climb([100, 105, 105, 102, 110]);
+    expect(c.gain).toBeCloseTo(13);
+    expect(c.loss).toBeCloseTo(3);
+    expect(smooth([0, 10, 0], 1)[1]).toBeCloseTo(10 / 3);
+  });
+
+  it("orders walking and riding parts like the map and keeps one height request per route", async () => {
+    const { planParts, fetchProfile } = await import("./elevation");
+    const seg = (mode: "walk" | "bike", g: [number, number][]) => ({ mode, durationMin: 5, distanceM: 500, geometry: g });
+    const plan: any = {
+      walkToDock: seg("walk", [[43.0, -89.4], [43.001, -89.4]]),
+      rides: [{ ...seg("bike", [[43.001, -89.4], [43.01, -89.4]]) }],
+      walkFromDock: seg("walk", [[43.01, -89.4], [43.011, -89.4]]),
+      roads: { breakdown: {}, rides: [{ breakdown: {}, segments: [
+        { kind: 0, unpaved: false, geometry: [[43.001, -89.4], [43.005, -89.4]] },
+        { kind: 3, unpaved: true, geometry: [[43.005, -89.4], [43.01, -89.4]] },
+      ] }] },
+    };
+    const parts = planParts(plan);
+    expect(parts.map((p) => `${p.mode}${p.kind ?? ""}${p.unpaved ? "u" : ""}`)).toEqual(["walk", "bike0", "bike3u", "walk"]);
+
+    let calls = 0;
+    const f = (async (_u: any, o: any) => {
+      calls++;
+      const body = JSON.parse(o.body);
+      expect(body.range).toBe(true);
+      return { ok: true, json: async () => ({ range_height: [[0, 270], [400, 280], [800, 275], [1223, 268]] }) };
+    }) as unknown as typeof fetch;
+    const p = await fetchProfile(parts, f, "http://x");
+    expect(p!.parts).toHaveLength(4);
+    expect(p!.parts[0].from).toBe(0);
+    expect(p!.pts[p!.pts.length - 1].d).toBeCloseTo(p!.totalM);
+    expect(p!.maxH).toBeGreaterThan(p!.minH);
+    await fetchProfile(parts, f, "http://x");
+    expect(calls).toBe(1);
+    // A router without elevation answers with an error: no plot, no crash.
+    const bad = (async () => ({ ok: false })) as unknown as typeof fetch;
+    expect(await fetchProfile([{ mode: "walk", geometry: [[1, 1], [1.01, 1]] }], bad, "http://y")).toBeNull();
+  });
+});

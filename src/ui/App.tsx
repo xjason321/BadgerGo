@@ -11,11 +11,12 @@ import { planRoutes, rankPlans } from "../core/planner";
 import { analyzePlan, strictRefiner } from "../core/roads";
 import { FallbackProvider, OsrmProvider, ValhallaProvider } from "../core/routing";
 import { DEFAULT_PREFS, STUDENT_PLAN, type Place, type Plan, type RoadPrefs, type Station } from "../core/types";
-import { BikeIcon, MoonIcon, PinIcon, SearchIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
+import { BikeIcon, InfoIcon, MoonIcon, PinIcon, SearchIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
 import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { DockMenu } from "./DockMenu";
 import { PencilIcon } from "./icons";
+import { AboutDialog } from "./AboutDialog";
 import { editChain, type DockAction } from "../core/dockActions";
 import { PlanCard } from "./PlanCard";
 import { NavSheet } from "./NavSheet";
@@ -127,6 +128,12 @@ export function App() {
     return () => ro.disconnect();
   }, [phone]);
   const [advanced, setAdvanced] = useState(false);
+  const [about, setAbout] = useState(false);
+  const infoBtn = (cls: string) => (
+    <button className={`theme-btn info-btn ${cls}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => setAbout(true)} title="About & attributions" aria-label="About and attributions">
+      <InfoIcon size={20} />
+    </button>
+  );
   const themeBtn = (cls: string) => (
     <button
       className={`theme-btn ${cls}`}
@@ -627,13 +634,16 @@ export function App() {
         </div>
       )}
       {themeBtn("on-desktop")}
+      {about && <AboutDialog onClose={() => setAbout(false)} />}
       <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null || formDrag != null ? " dragging" : ""}${fitForm && formHidden ? " hidden-form" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={fitForm ? ({ transform: `translateY(${formDrag ?? (formHidden ? hiddenY : 0)}px)` } as React.CSSProperties) : levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
+        {infoBtn("on-desktop")}
         <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
           <span />
         </div>
         <header className="brand" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
           <img src="/badgergo-logo.png" alt="" width={44} height={44} />
           <h1>BadgerGo!</h1>
+          {infoBtn("in-header")}
           {themeBtn("in-header")}
         </header>
 
@@ -821,6 +831,7 @@ export function App() {
           </div>
         </div>
         <a className="bcycle-logo" href="https://madison.bcycle.com/" target="_blank" rel="noopener noreferrer" title="Madison BCycle">
+          <span>Using public data from</span>
           <img src="/madison-bcycle-logo.png" alt="Madison BCycle" height={30} />
         </a>
       </aside>

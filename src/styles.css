@@ -254,3 +254,18 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 
 .clear-btn { background: transparent; color: #64748b; width: 32px; }
 @media (min-width: 900px) { .clear-btn { display: none; } }
+
+/* Phones: two screens in the sheet. The form first; once routes exist, a sideways strip of route cards and a Back button on the map. */
+.back-fab { display: none; }
+@media (max-width: 899px) {
+  .panel.show-routes .form-only, .panel.show-routes .brand { display: none; }
+  .back-fab { display: flex; position: fixed; z-index: 700; left: 14px; bottom: calc(var(--sheet-h, 150px) + 14px); align-items: center; gap: 6px;
+    border: 3px solid #fff; border-radius: 999px; padding: 10px 18px 10px 12px; font-weight: 800; font-size: 15px; background: var(--g900); color: #fff;
+    box-shadow: 0 4px 0 #04200f, 0 8px 20px #0005; }
+  .back-fab:active { transform: translateY(2px); box-shadow: 0 2px 0 #04200f, 0 4px 12px #0005; }
+  .panel.show-routes .scroll { padding-left: 0; padding-right: 0; }
+  .panel.show-routes .status { margin: 4px 18px 10px; font-size: 13px; }
+  .panel.show-routes .plans { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 14px 6px; scroll-padding-left: 14px; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .panel.show-routes .plans::-webkit-scrollbar { display: none; }
+  .panel.show-routes .plan { flex: none; width: calc(100% - 44px); margin-bottom: 0; scroll-snap-align: start; scroll-snap-stop: always; align-self: flex-start; }
+}

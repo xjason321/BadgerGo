@@ -65,6 +65,22 @@ export function App() {
   const isPhone = () => window.matchMedia("(max-width: 899px)").matches;
   const sheetH = dragH ?? sheetPx(snap, vh);
 
+  const goBack = () => { setPlans([]); setSelected(0); setBackup(""); setStatus("Routes cleared. Change your trip and search again."); };
+  // On phones the route cards sit in a sideways, snapping strip: swiping to a card selects it, tapping a card scrolls it into view.
+  const strip = useRef<HTMLUListElement>(null);
+  const cardAt = (i: number) => strip.current?.children[i] as HTMLElement | undefined;
+  const onStripScroll = () => {
+    const el = strip.current;
+    if (!el || !isPhone() || !el.children.length) return;
+    const first = el.children[0] as HTMLElement;
+    const stride = first.offsetWidth + 12;
+    const i = Math.max(0, Math.min(el.children.length - 1, Math.round(el.scrollLeft / stride)));
+    setSelected((cur) => (cur === i ? cur : i));
+  };
+  const selectCard = (i: number) => {
+    setSelected(i);
+    if (isPhone()) cardAt(i)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  };
   const onGrabDown = (e: React.PointerEvent) => {
     if (!isPhone()) return; // the side panel on a laptop doesn't resize
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -119,9 +135,11 @@ export function App() {
   const set = (t: Target, p: Place) => (t === "origin" ? setOrigin(p) : setDestination(p));
 
   const [sugg, setSugg] = useState<{ t: Target; items: CampusPlace[] } | null>(null);
-  /** A real end location was just chosen: if there's a start too, find routes right away. */
+  /** A start or end was just chosen: if the other one is set too, find routes right away. */
   const autoGo = (t: Target, p: Place) => {
-    if (t === "destination" && origin && stations.length) go(origin, p);
+    if (!stations.length) return;
+    if (t === "destination" && origin) go(origin, p);
+    else if (t === "origin" && destination) go(p, destination);
   };
   const pickCampus = (t: Target, c: CampusPlace) => {
     set(t, { lat: c.lat, lon: c.lon, label: c.name });
@@ -171,6 +189,7 @@ export function App() {
         setFocus({ lat, lon, n: Date.now() });
         setBusy(false);
         setStatus("Start set to your location. Now pick or search an end point.");
+        if (!auto) autoGo("origin", { lat, lon, label: "My location" });
       },
       (err) => {
         setBusy(false);
@@ -333,17 +352,23 @@ export function App() {
       {plan && !plan.walkOnly && !ride.active && (
         <button className="start-fab" onClick={startRide}><BikeIcon size={20} /> Start</button>
       )}
-      <aside className={`panel${dragH != null ? " dragging" : ""}`}>
+      {plans.length > 0 && !ride.active && (
+        <button className="back-fab" onClick={goBack}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          Back
+        </button>
+      )}
+      <aside className={`panel${dragH != null ? " dragging" : ""}${plans.length && !ride.active ? " show-routes" : ""}`}>
         <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
           <span />
         </div>
         <header className="brand" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
           <img src="/badgergo-logo.png" alt="" width={44} height={44} />
-          <h1>BadgerGoWeee</h1>
+          <h1>BadgerGo</h1>
         </header>
 
         <div className="scroll">
-          <section className="card where">
+          <section className="card where form-only">
             {(["origin", "destination"] as Target[]).map((t) => (
               <div className="loc-row" key={t}>
                 <span className={`dot ${t === "origin" ? "start" : "end"}`} aria-hidden="true" />
@@ -407,7 +432,7 @@ export function App() {
             {picking && <p className="hint-line">Tap the map to set the {picking === "origin" ? "start" : "end"}.</p>}
           </section>
 
-          <section className="card">
+          <section className="card form-only">
             <h2>Bike swapping</h2>
             <label className="check">
               <input type="checkbox" checked={swapsOn} onChange={(e) => setSwapsOn(e.target.checked)} />
@@ -423,12 +448,12 @@ export function App() {
             )}
           </section>
 
-          <section className="card">
+          <section className="card form-only">
             <h2>Terrain preferences</h2>
             <TerrainPicker prefs={prefs} onChange={setPrefs} />
           </section>
 
-          <button className="primary" onClick={() => go()} disabled={!origin || !destination || !stations.length || busy}>
+          <button className="primary form-only" onClick={() => go()} disabled={!origin || !destination || !stations.length || busy}>
             {busy ? "Working…" : "Find routes"}
           </button>
           <p className="status">
@@ -446,9 +471,9 @@ export function App() {
             <p className="status warn">Preference router unavailable ({backup}). Used a backup that ignores road preferences; try again in a few minutes.</p>
           )}
 
-          <ul className="plans">
+          <ul className="plans" ref={strip} onScroll={onStripScroll}>
             {plans.map((p, i) => (
-              <PlanCard key={p.id} plan={p} index={i} selected={i === selected} trafficLevel={prefs.traffic} onSelect={() => setSelected(i)} />
+              <PlanCard key={p.id} plan={p} index={i} selected={i === selected} trafficLevel={prefs.traffic} onSelect={() => selectCard(i)} />
             ))}
           </ul>
         </div>

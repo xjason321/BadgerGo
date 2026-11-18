@@ -242,3 +242,12 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .compass .needle { position: relative; width: 48px; height: 48px; display: grid; place-items: center; will-change: transform; }
 .compass .needle svg { position: absolute; inset: 0; }
 .compass .needle span { position: absolute; top: -2px; left: 50%; transform: translateX(-50%); font: 800 10px Inter, system-ui, sans-serif; color: #fff; text-shadow: 0 1px 2px #000a; }
+
+/* "Working" pill while routes are being found (phones) */
+.working-pill { position: fixed; z-index: 700; left: 14px; bottom: calc(var(--sheet-h, 150px) + 14px); display: flex; align-items: center; gap: 9px;
+  padding: 10px 16px 10px 12px; border-radius: 999px; background: #0b3b25; color: #fff; border: 2px solid #ffffff55;
+  font: 800 15px Inter, system-ui, sans-serif; box-shadow: 0 4px 0 #04200f, 0 8px 20px #0005; pointer-events: none; }
+.app.riding .working-pill { left: 86px; } /* clear of the compass */
+.spin-bike { display: grid; place-items: center; color: #b6f23a; animation: bike-spin 1.1s linear infinite; }
+@keyframes bike-spin { to { transform: rotate(360deg); } }
+@media (min-width: 900px) { .working-pill { display: none; } }

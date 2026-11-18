@@ -320,6 +320,11 @@ export function App() {
           </div>
         </div>
       )}
+      {busy && (
+        <div className="working-pill" role="status" aria-live="polite">
+          <span className="spin-bike"><BikeIcon size={20} /></span> Working
+        </div>
+      )}
       {ride.active && !ride.done && !ride.follow && (
         <button className="recenter" onClick={() => ride.setFollow(true)} aria-label="Recenter on me">
           <TargetIcon size={20} /> Recenter

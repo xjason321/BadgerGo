@@ -1,5 +1,4 @@
 import L from "leaflet";
-import "leaflet-rotate"; // lets the map turn (ride mode faces the way you do)
 import { useEffect, useMemo, useRef, useState } from "react";
 import { KINDS } from "../core/bikeways";
 import { googleMapsUrl } from "../core/bcycle";
@@ -155,41 +154,66 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
   meRef.current = me;
   const [zoom, setZoom] = useState(13);
 
+  // The map is only built with rotation (the leaflet-rotate plugin) while a ride is on. The plugin makes touch zooming and
+  // panning clumsy (paths drift off the map, tiles load in blocks), so everyday use runs on plain Leaflet, and the map is
+  // rebuilt in place, same view and layers, when a ride starts or ends.
+  const rotating = !!compass;
+  const [mapGen, setMapGen] = useState(0);
+  const lastView = useRef<{ center: L.LatLngExpression; zoom: number }>({ center, zoom: 13 });
   useEffect(() => {
-    // tapHold turns a long touch into a "contextmenu" event on iOS; Android and desktop send it natively.
-    const m = L.map(el.current!, { zoomControl: false, tapHold: true, rotate: true, bearing: 0, touchRotate: false, shiftKeyRotate: false, pitchDrag: false, rotateControl: false } as L.MapOptions).setView(center, 13);
-    L.control.zoom({ position: "topright" }).addTo(m);
-    // The bottom sheet covers part of the map on phones, so the +/- buttons zoom around the middle of the
-    // part you can actually see, not around the middle of the whole map.
-    const stepZoom = (d: number) => {
-      const cover = coverRef.current;
-      if (!cover) return m.setZoom(m.getZoom() + d);
-      const size = m.getSize();
-      return m.setZoomAround(L.point(size.x / 2, (size.y - cover) / 2), m.getZoom() + d);
+    let cancelled = false;
+    let m: L.Map | null = null;
+    (async () => {
+      if (rotating) await import("leaflet-rotate");
+      if (cancelled) return;
+      // tapHold turns a long touch into a "contextmenu" event on iOS; Android and desktop send it natively.
+      const opts = rotating
+        ? { rotate: true, bearing: 0, touchRotate: false, shiftKeyRotate: false, pitchDrag: false, rotateControl: false }
+        : {};
+      m = L.map(el.current!, { zoomControl: false, tapHold: true, ...opts } as L.MapOptions).setView(lastView.current.center, lastView.current.zoom);
+      const mm = m;
+      L.control.zoom({ position: "topright" }).addTo(mm);
+      // The bottom sheet covers part of the map on phones, so the +/- buttons zoom around the middle of the
+      // part you can actually see, not around the middle of the whole map.
+      const stepZoom = (d: number) => {
+        const cover = coverRef.current;
+        if (!cover) return mm.setZoom(mm.getZoom() + d);
+        const size = mm.getSize();
+        return mm.setZoomAround(L.point(size.x / 2, (size.y - cover) / 2), mm.getZoom() + d);
+      };
+      mm.zoomIn = (d?: number) => stepZoom(d ?? mm.options.zoomDelta ?? 1);
+      mm.zoomOut = (d?: number) => stepZoom(-(d ?? mm.options.zoomDelta ?? 1));
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors",
+        updateWhenIdle: false, // keep loading tiles while panning (the phone default waits until you stop, so the map fills in as blocks)
+        updateWhenZooming: false,
+        keepBuffer: 3,
+      }).addTo(mm);
+      mm.createPane("mask").style.zIndex = "250";
+      mm.getPane("mask")!.style.pointerEvents = "none";
+      boundaryLayer.current.addTo(mm);
+      // The compass needle always points at true north: it turns by the map's bearing (set directly, no React re-render per frame).
+      mm.on("rotate", () => { if (needle.current) needle.current.style.transform = `rotate(${mm.getBearing()}deg)`; });
+      mm.on("dragstart", () => panRef.current?.()); // the rider moved the map themselves: stop following
+      stationLayer.current.addTo(mm);
+      routeLayer.current.addTo(mm);
+      pointLayer.current.addTo(mm);
+      pinLayer.current.addTo(mm);
+      mm.on("click", (e) => clickRef.current(e.latlng.lat, e.latlng.lng));
+      mm.on("contextmenu", (e: L.LeafletMouseEvent) => pressRef.current(e.latlng.lat, e.latlng.lng));
+      mm.on("zoomend", () => setZoom(mm.getZoom()));
+      mm.on("moveend", () => { lastView.current = { center: mm.getCenter(), zoom: mm.getZoom() }; });
+      map.current = mm;
+      setMapGen((g) => g + 1); // lets the effects that need the map run again
+    })();
+    return () => {
+      cancelled = true;
+      if (m) { lastView.current = { center: m.getCenter(), zoom: m.getZoom() }; m.remove(); }
+      map.current = null;
     };
-    m.zoomIn = (d?: number) => stepZoom(d ?? m.options.zoomDelta ?? 1);
-    m.zoomOut = (d?: number) => stepZoom(-(d ?? m.options.zoomDelta ?? 1));
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors",
-    }).addTo(m);
-    m.createPane("mask").style.zIndex = "250";
-    m.getPane("mask")!.style.pointerEvents = "none";
-    boundaryLayer.current.addTo(m);
-    // The compass needle always points at true north: it turns by the map's bearing (set directly, no React re-render per frame).
-    m.on("rotate", () => { if (needle.current) needle.current.style.transform = `rotate(${m.getBearing()}deg)`; });
-    m.on("dragstart", () => panRef.current?.()); // the rider moved the map themselves: stop following
-    stationLayer.current.addTo(m);
-    routeLayer.current.addTo(m);
-    pointLayer.current.addTo(m);
-    pinLayer.current.addTo(m);
-    m.on("click", (e) => clickRef.current(e.latlng.lat, e.latlng.lng));
-    m.on("contextmenu", (e: L.LeafletMouseEvent) => pressRef.current(e.latlng.lat, e.latlng.lng));
-    m.on("zoomend", () => setZoom(m.getZoom()));
-    map.current = m;
-    return () => { m.remove(); map.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [rotating]);
 
   // City limits: dim everything outside, outline the edge.
   useEffect(() => {
@@ -293,7 +317,7 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
       if (z !== m.getZoom()) m.setZoom(z, { animate: false });
       centerOnMe(m, coverRef.current, me, true);
     }
-  }, [me, follow]);
+  }, [me, follow, mapGen]);
 
   // Turn the map so "up" is the direction the rider faces. A per-frame ease (about 120 ms time constant) glides toward each
   // new heading by the shortest way round, so sensor jitter and big swings both look smooth. North-up again when ride mode ends.
@@ -302,6 +326,7 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     const m = map.current;
     if (!m) return;
     const t = turn.current;
+    if (!rotating || typeof m.setBearing !== "function") return;
     if (!(follow && heading != null)) {
       t.target = null;
       if (m.getBearing() !== 0 && !me) m.resetNorth({ animate: true });
@@ -324,7 +349,7 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
       if (meRef.current) centerOnMe(mm, coverRef.current, meRef.current, false); // turning pivots on the map centre, so keep the rider in place
     };
     t.raf = requestAnimationFrame(step);
-  }, [heading, follow, me]);
+  }, [heading, follow, me, mapGen]);
   useEffect(() => () => cancelAnimationFrame(turn.current.raf), []);
 
   useEffect(() => {
@@ -399,9 +424,9 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
           className="compass"
           aria-label="Face north"
           title="Face north"
-          onClick={() => { panRef.current?.(); map.current?.resetNorth({ animate: true }); }}
+          onClick={() => { panRef.current?.(); map.current?.resetNorth?.({ animate: true }); }}
         >
-          <div className="needle" ref={needle} style={{ transform: `rotate(${map.current?.getBearing() ?? 0}deg)` }}>
+          <div className="needle" ref={needle} style={{ transform: `rotate(${map.current?.getBearing?.() ?? 0}deg)` }}>
             <svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
               <path d="M24 5 30 24H18Z" fill="#ef4444" />
               <path d="M24 43 18 24h12Z" fill="#dff3e6" />

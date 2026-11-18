@@ -3,11 +3,11 @@ import { BOUNDARY_OSM_ID, MAP_CENTER, SEARCH_VIEWBOX, SYSTEM_ID } from "../confi
 import { KINDS } from "../core/bikeways";
 import { loadBoundary, type Boundary } from "../core/boundary";
 import { fetchStations } from "../core/gbfs";
-import { geocode, reverseGeocode } from "../core/geocode";
+import { geocode, reverseGeocode, suggestPlaces } from "../core/geocode";
 import { walkOnlyPlan } from "../core/planner";
 import { formatDistance } from "../core/ride";
 import { useRide } from "./useRide";
-import { searchCampus, type CampusPlace } from "../core/campus";
+import { norm, searchCampus, type CampusPlace } from "../core/campus";
 import { planRoutes, rankPlans } from "../core/planner";
 import { analyzePlan, strictRefiner } from "../core/roads";
 import { FallbackProvider, OsrmProvider, ValhallaProvider } from "../core/routing";
@@ -141,7 +141,31 @@ export function App() {
     if (t === "destination" && origin) go(origin, p);
     else if (t === "origin" && destination) go(p, destination);
   };
+  // Anything-in-Madison suggestions (restaurants, shops, addresses) are added under the campus matches while you type.
+  const suggReq = useRef(0);
+  const suggTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const onType = (t: Target, value: string) => {
+    const campus = searchCampus(value, 4);
+    setSugg(campus.length ? { t, items: campus } : null);
+    clearTimeout(suggTimer.current);
+    const id = ++suggReq.current;
+    if (value.trim().length < 3) return;
+    suggTimer.current = setTimeout(async () => {
+      try {
+        const found = await suggestPlaces(value.trim(), SEARCH_VIEWBOX, { limit: 6 });
+        if (id !== suggReq.current) return; // typed something newer meanwhile
+        const have = new Set(campus.map((c) => norm(c.name)));
+        const extra: CampusPlace[] = found
+          .filter((f) => !have.has(norm(f.name)))
+          .map((f) => ({ name: f.name, lat: f.lat, lon: f.lon, address: f.address || "Madison area", kind: "n" as const }));
+        const items = [...campus, ...extra].slice(0, 8);
+        setSugg(items.length ? { t, items } : null);
+      } catch { /* keep the campus matches */ }
+    }, 280);
+  };
   const pickCampus = (t: Target, c: CampusPlace) => {
+    clearTimeout(suggTimer.current);
+    suggReq.current++; // drop any suggestions still on their way
     set(t, { lat: c.lat, lon: c.lon, label: c.name });
     autoGo(t, { lat: c.lat, lon: c.lon, label: c.name });
     setText((x) => ({ ...x, [t]: c.name }));
@@ -378,8 +402,7 @@ export function App() {
                   aria-label={t === "origin" ? "Start" : "End"}
                   onChange={(e) => {
                     setText({ ...text, [t]: e.target.value });
-                    const items = searchCampus(e.target.value, 6);
-                    setSugg(items.length ? { t, items } : null);
+                    onType(t, e.target.value);
                   }}
                   onBlur={() => setTimeout(() => setSugg((x) => (x?.t === t ? null : x)), 150)}
                   onKeyDown={(e) => e.key === "Enter" && search(t)}

@@ -1,0 +1,13 @@
+{
+  "name": "BadgerGo!",
+  "short_name": "BadgerGo",
+  "description": "Bike-share trip planning for Madison",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b3b25",
+  "theme_color": "#0b3b25",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/badgergo-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

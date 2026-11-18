@@ -17,6 +17,7 @@ import { PlaceMenu } from "./PlaceMenu";
 import { DockMenu } from "./DockMenu";
 import { PencilIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
+import { InstallTip } from "./InstallTip";
 import { editChain, type DockAction } from "../core/dockActions";
 import { PlanCard } from "./PlanCard";
 import { NavSheet } from "./NavSheet";
@@ -575,7 +576,7 @@ export function App() {
         boundary={boundary}
         pin={menu}
         focus={focus}
-        coveredBottom={ride.active ? dockH : isPhone() ? Math.min(sheetH, Math.round(vh * 0.6)) : 0}
+        coveredBottom={ride.active ? dockH : isPhone() ? Math.min(sheetH, Math.round(vh * 0.78)) : 0}
         onMapClick={onMapClick}
         onLongPress={onLongPress}
         onMovePoint={onMovePoint}
@@ -635,6 +636,7 @@ export function App() {
       )}
       {themeBtn("on-desktop")}
       {about && <AboutDialog onClose={() => setAbout(false)} />}
+      {fitForm && !ride.active && <InstallTip />}
       <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null || formDrag != null ? " dragging" : ""}${fitForm && formHidden ? " hidden-form" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={fitForm ? ({ transform: `translateY(${formDrag ?? (formHidden ? hiddenY : 0)}px)` } as React.CSSProperties) : levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
         {infoBtn("on-desktop")}
         <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>

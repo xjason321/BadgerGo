@@ -242,5 +242,3 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .compass .needle { position: relative; width: 48px; height: 48px; display: grid; place-items: center; will-change: transform; }
 .compass .needle svg { position: absolute; inset: 0; }
 .compass .needle span { position: absolute; top: -2px; left: 50%; transform: translateX(-50%); font: 800 10px Inter, system-ui, sans-serif; color: #fff; text-shadow: 0 1px 2px #000a; }
-.dock-pop a.open-bcycle.secondary { margin-top: 6px; background: #e8f3ec; color: #0b3b25 !important; }
-.dock-pop a.open-bcycle.secondary:hover { background: #cfe8d9; }

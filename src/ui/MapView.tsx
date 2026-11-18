@@ -2,7 +2,7 @@ import L from "leaflet";
 import "leaflet-rotate"; // lets the map turn (ride mode faces the way you do)
 import { useEffect, useMemo, useRef, useState } from "react";
 import { KINDS } from "../core/bikeways";
-import { bcycleUrl, googleMapsUrl, isDesktop, isIos } from "../core/bcycle";
+import { googleMapsUrl } from "../core/bcycle";
 import type { Boundary } from "../core/boundary";
 import { maskRings } from "../core/boundary";
 import { dockRing, dockNote, type DockRole, type StopKind } from "../core/dockStatus";
@@ -105,19 +105,12 @@ function popupContent(s: Station, kind?: StopKind, r?: Refresher): HTMLElement {
     popupTimers.set(root, window.setInterval(update, 1000));
     counts.append(btn);
   }
-  const mkLink = (text: string, href: string, secondary = false, sameTab = false) => {
-    const a = document.createElement("a");
-    a.className = secondary ? "open-bcycle secondary" : "open-bcycle";
-    a.href = href;
-    // Phones: stay in this tab for the BCycle link, which lets Android hand an app link to the installed app.
-    if (!sameTab) { a.target = "_blank"; a.rel = "noopener"; }
-    a.textContent = text;
-    return a;
-  };
-  // Computers can't open the BCycle app, so they get Google Maps. Phones get the BCycle app link plus a Google Maps fallback.
-  const links: HTMLAnchorElement[] = isDesktop()
-    ? [mkLink("Open in Google Maps", googleMapsUrl(s))]
-    : [mkLink("Open in BCycle", bcycleUrl(s, isIos()), false, true), mkLink("Open in Google Maps", googleMapsUrl(s), true)];
+  const link = document.createElement("a");
+  link.className = "open-bcycle";
+  link.href = googleMapsUrl(s);
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = "Open in Google Maps";
   root.append(title, counts);
   if (kind) {
     const note = dockNote(s, kind);
@@ -126,7 +119,7 @@ function popupContent(s: Station, kind?: StopKind, r?: Refresher): HTMLElement {
     el.textContent = note.text;
     root.append(el);
   }
-  root.append(...links);
+  root.append(link);
   return root;
 }
 

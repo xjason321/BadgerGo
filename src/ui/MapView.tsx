@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { KINDS } from "../core/bikeways";
-import { googleMapsUrl } from "../core/bcycle";
+import { dockActionsFor, type DockAction } from "../core/dockActions";
 import type { Boundary } from "../core/boundary";
 import { maskRings } from "../core/boundary";
 import { dockRing, dockNote, type DockRole, type StopKind } from "../core/dockStatus";
@@ -31,6 +31,10 @@ interface Props {
   /** Ride mode: where the rider is, and whether the map should keep them in view. */
   me?: { lat: number; lon: number; accuracy?: number } | null;
   follow?: boolean;
+  /** Ride mode: the leg being followed. It is highlighted and the map frames it (plus the rider). */
+  leg?: [number, number][] | null;
+  /** Bump to frame the leg again (e.g. after the rider moved the map). */
+  legFocus?: number;
   /** Show the compass (ride mode). Tapping it faces north and stops following. */
   compass?: boolean;
   /** When the BCycle data was last downloaded (ms), and a way to download it again (allowed once a minute). */
@@ -41,7 +45,42 @@ interface Props {
   heading?: number | null;
   onUserPan?: () => void;
   onMovePoint: (which: "origin" | "destination", lat: number, lon: number) => void;
+  /** Docks of the bike route on screen (pick-up first), or null. Decides which buttons a dock's popup offers. */
+  chainIds?: string[] | null;
+  onDockAction?: (s: Station, a: DockAction) => void;
+  /** A dock was long-pressed. */
+  onDockPress?: (s: Station) => void;
 }
+
+/** How far each dock is from the route on screen, in metres (straight-line to the nearest part of the route). */
+function distancesToRoute(plan: Plan, stations: Station[]): Map<string, number> {
+  const lines: [number, number][][] = [plan.walkToDock.geometry, plan.walkFromDock.geometry];
+  for (const r of plan.rides) lines.push(r.geometry, ...(r.walkBefore ? [r.walkBefore.geometry] : []), ...(r.walkAfter ? [r.walkAfter.geometry] : []));
+  const lat0 = (stations[0]?.lat ?? 43.07) * (Math.PI / 180);
+  const kx = 111320 * Math.cos(lat0); // metres per degree of longitude here
+  const ky = 110540; // metres per degree of latitude
+  const segs: number[][] = []; // [x1, y1, x2, y2] in metres
+  for (const g of lines) for (let i = 1; i < g.length; i++) segs.push([g[i - 1][1] * kx, g[i - 1][0] * ky, g[i][1] * kx, g[i][0] * ky]);
+  const out = new Map<string, number>();
+  for (const s of stations) {
+    const px = s.lon * kx, py = s.lat * ky;
+    let best = Infinity;
+    for (const [x1, y1, x2, y2] of segs) {
+      const dx = x2 - x1, dy = y2 - y1;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2)) : 0;
+      const d = Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+      if (d < best) best = d;
+    }
+    out.set(s.id, best);
+  }
+  return out;
+}
+
+/** Docks fade the further they are from the route: about 40% a short walk away, 20% at ~180 m, gone entirely by 500 m. */
+const GONE_M = 500;
+const fadeFor = (m: number | undefined) =>
+  m == null ? 0.6 : m >= 180 ? Math.max(0, 0.2 * (1 - (m - 180) / (GONE_M - 180))) : Math.min(0.6, 0.6 - m * 0.0022);
 
 const dot = (color: string, size = 14) =>
   L.divIcon({
@@ -79,7 +118,7 @@ const COOLDOWN_MS = 60_000;
 const popupTimers = new WeakMap<HTMLElement, number>();
 const RELOAD_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 6M20 4v7h-7"/></svg>';
 
-function popupContent(s: Station, kind?: StopKind, r?: Refresher): HTMLElement {
+function popupContent(s: Station, kind?: StopKind, r?: Refresher, acts?: { chainIds: string[] | null; run: (a: DockAction) => void }): HTMLElement {
   const root = document.createElement("div");
   root.className = "dock-pop";
   const title = document.createElement("strong");
@@ -107,12 +146,6 @@ function popupContent(s: Station, kind?: StopKind, r?: Refresher): HTMLElement {
     popupTimers.set(root, window.setInterval(update, 1000));
     counts.append(btn);
   }
-  const link = document.createElement("a");
-  link.className = "open-bcycle";
-  link.href = googleMapsUrl(s);
-  link.target = "_blank";
-  link.rel = "noopener";
-  link.textContent = "Open in Google Maps";
   root.append(title, counts);
   if (kind) {
     const note = dockNote(s, kind);
@@ -121,7 +154,19 @@ function popupContent(s: Station, kind?: StopKind, r?: Refresher): HTMLElement {
     el.textContent = note.text;
     root.append(el);
   }
-  root.append(link);
+  if (acts) {
+    const row = document.createElement("div");
+    row.className = "dock-acts";
+    for (const it of dockActionsFor(acts.chainIds, s.id)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.label;
+      b.className = it.action === "swap" ? "swap" : it.action === "end" || it.action === "dropoff" ? "end" : it.action === "remove" ? "rm" : "";
+      b.onclick = (e) => { e.stopPropagation(); acts.run(it.action); };
+      row.append(b);
+    }
+    root.append(row);
+  }
   return root;
 }
 
@@ -133,7 +178,7 @@ function centerOnMe(m: L.Map, cover: number, me: { lat: number; lon: number }, a
   m.panBy(have.subtract(want), { animate, duration: 0.4 });
 }
 
-export function MapView({ center, stations, origin, destination, plan, boundary, pin, focus, coveredBottom, coveredLeft = 0, dark = false, onMapClick, onLongPress, onMovePoint, me, follow, heading, compass, onUserPan, loadedAt = 0, refreshing = false, onRefresh }: Props) {
+export function MapView({ center, stations, origin, destination, plan, boundary, pin, focus, coveredBottom, coveredLeft = 0, dark = false, onMapClick, onLongPress, onMovePoint, me, follow, leg, legFocus = 0, heading, compass, onUserPan, loadedAt = 0, refreshing = false, onRefresh, chainIds = null, onDockAction, onDockPress }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const stationLayer = useRef(L.layerGroup());
@@ -251,6 +296,9 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
   // Latest refresh state for the popups (they're built when opened, so they read it through refs).
   const refreshRef = useRef<Refresher>({ loadedAt: () => 0, busy: () => false, refresh: () => {} });
   refreshRef.current = { loadedAt: () => loadedAt, busy: () => refreshing, refresh: () => onRefresh?.() };
+  const actRef = useRef({ chainIds, onDockAction, onDockPress });
+  actRef.current = { chainIds, onDockAction, onDockPress };
+  const routeDist = useMemo(() => (plan && stations.length ? distancesToRoute(plan, stations) : null), [plan, stations]);
   const openDock = useRef<string | null>(null);
   const rebuilding = useRef(false);
 
@@ -264,18 +312,23 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     let again: L.Marker | null = null;
     for (const s of stations) {
       const role = roles.get(s.id) ?? "other";
+      if (plan && role === "other" && (routeDist?.get(s.id) ?? 0) >= GONE_M) continue; // too far from the route to matter: not drawn at all
       const size = role === "other" ? base : base + 6;
       const m = L.marker([s.lat, s.lon], {
-        icon: dockIcon(dockRing(s, role), size),
+        icon: dockIcon(dockRing(s, role, kinds.get(s.id)), size),
         zIndexOffset: role === "other" ? 0 : 1000,
-        opacity: plan && role === "other" ? 0.6 : 1,
+        opacity: plan && role === "other" ? fadeFor(routeDist?.get(s.id)) : 1,
         keyboard: false,
       })
-        .bindPopup(() => popupContent(s, kinds.get(s.id), refreshRef.current), {
+        .bindPopup(() => popupContent(s, kinds.get(s.id), refreshRef.current, {
+          chainIds: actRef.current.chainIds,
+          run: (act) => { m.closePopup(); actRef.current.onDockAction?.(s, act); },
+        }), {
           className: "dock-popup",
           autoPanPaddingTopLeft: [16, 16],
           autoPanPaddingBottomRight: [16, coverRef.current + 16],
         })
+        .on("contextmenu", (e) => { L.DomEvent.stop(e as L.LeafletEvent); m.closePopup(); actRef.current.onDockPress?.(s); })
         .on("popupopen", () => { openDock.current = s.id; })
         .on("popupclose", (e) => {
           const el = (e as L.PopupEvent).popup.getContent();
@@ -287,7 +340,7 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     }
     rebuilding.current = false;
     again?.openPopup();
-  }, [stations, roles, kinds, zoom, plan]);
+  }, [stations, roles, kinds, zoom, plan, routeDist]);
 
   useEffect(() => {
     const g = pointLayer.current;
@@ -303,6 +356,23 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     if (origin) mk("origin", origin, "#16a34a", "Start");
     if (destination) mk("destination", destination, "#dc2626", "End");
   }, [origin, destination]);
+
+  // Ride mode: highlight the current leg and frame it together with the rider's dot.
+  const legLayer = useRef(L.layerGroup());
+  useEffect(() => {
+    const m = map.current;
+    const g = legLayer.current;
+    g.clearLayers();
+    if (!m || !leg || leg.length < 2) return;
+    if (!m.hasLayer(g)) g.addTo(m);
+    L.polyline(leg, { color: "#0b3b25", weight: 11, opacity: 0.85, lineCap: "round", interactive: false }).addTo(g);
+    L.polyline(leg, { color: "#b8f23a", weight: 6, opacity: 1, lineCap: "round", interactive: false }).addTo(g);
+    const b = L.latLngBounds(leg);
+    if (meRef.current) b.extend([meRef.current.lat, meRef.current.lon]);
+    m.fitBounds(b, { paddingTopLeft: [28, 70], paddingBottomRight: [28, coverRef.current + 28], maxZoom: 18, animate: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leg, legFocus, mapGen]);
+  useEffect(() => { if (!leg) legLayer.current.clearLayers(); }, [leg]);
 
   // Ride mode: the rider's blue dot, and keep it in the visible part of the map while following.
   useEffect(() => {

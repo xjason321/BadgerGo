@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { advanceLeg, buildLegs, type Leg } from "../core/ride";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { legAfterFix, navLegs, type NavLeg } from "../core/navLinks";
 import type { LatLng, Plan } from "../core/types";
 
 export interface Fix extends LatLng { accuracy?: number }
@@ -16,12 +16,13 @@ export function useRide(plan: Plan | null, destination: LatLng | null, destinati
   const compass = useRef<number | null>(null);
   const smooth = useRef<number | null>(null);
   const stopCompass = useRef<(() => void) | null>(null);
-  const legsRef = useRef<Leg[]>([]);
+  const legsRef = useRef<NavLeg[]>([]);
   const watch = useRef<number | null>(null);
   const lock = useRef<{ release: () => Promise<void> } | null>(null);
 
-  const legs = plan && destination ? buildLegs(plan, destination, destinationName) : [];
+  const legs = useMemo(() => (plan && destination ? navLegs(plan, destination, destinationName) : []), [plan, destination?.lat, destination?.lon, destinationName]); // eslint-disable-line react-hooks/exhaustive-deps
   legsRef.current = legs;
+  if (import.meta.env.DEV) (window as unknown as { __rideLegs?: NavLeg[] }).__rideLegs = legs; // for testing with a fake GPS
 
   /** Pick the best direction (GPS course when moving, compass when slow), smooth it, and publish it. */
   const publish = useCallback(() => {
@@ -77,7 +78,7 @@ export function useRide(plan: Plan | null, destination: LatLng | null, destinati
         setPos(fix);
         gps.current = { h: typeof p.coords.heading === "number" && !Number.isNaN(p.coords.heading) ? p.coords.heading : gps.current.h, speed: p.coords.speed ?? 0 };
         publish();
-        setIndex((i) => advanceLeg(legsRef.current, i, fix));
+        setIndex((i) => legAfterFix(legsRef.current, i, fix)); // close to the leg's end (the next dock): on to the next leg
       },
       (e) => { setError(e.code === 1 ? "Location permission was denied." : "Can't get your location right now."); },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
@@ -88,5 +89,5 @@ export function useRide(plan: Plan | null, destination: LatLng | null, destinati
   useEffect(() => { if (active) stop(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [plan?.id]);
   useEffect(() => () => { if (watch.current != null) navigator.geolocation.clearWatch(watch.current); }, []);
 
-  return { active, pos, heading, index, legs, error, follow, setFollow, start, stop, done: active && legs.length > 0 && index >= legs.length };
+  return { active, pos, heading, index, legs, error, follow, setFollow, setIndex, start, stop, done: active && legs.length > 0 && index >= legs.length };
 }

@@ -38,3 +38,6 @@ export const CloseIcon = I(<><path d="M6 6l12 12M18 6 6 18" /></>);
 export const FlagIcon = I(<><path d="M6 21V4M6 5h11l-2 3.5 2 3.5H6" /></>);
 export const SunIcon = I(<><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" /></>);
 export const MoonIcon = I(<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />);
+
+export const PencilIcon = I(<><path d="M4 20h4L19 9a2.1 2.1 0 0 0-4-4L4 16v4Z" /><path d="m13.5 6.5 4 4" /></>);
+export const TrashIcon = I(<><path d="M5 7h14M10 11v6M14 11v6M6.5 7l1 12.5h9l1-12.5M9.5 7V4.5h5V7" /></>);

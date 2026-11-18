@@ -4,8 +4,7 @@ import { KINDS } from "../core/bikeways";
 import { loadBoundary, type Boundary } from "../core/boundary";
 import { fetchStations } from "../core/gbfs";
 import { geocode, reverseGeocode, suggestPlaces } from "../core/geocode";
-import { walkOnlyPlan } from "../core/planner";
-import { formatDistance } from "../core/ride";
+import { buildCustomPlan, walkOnlyPlan } from "../core/planner";
 import { useRide } from "./useRide";
 import { norm, searchCampus, type CampusPlace } from "../core/campus";
 import { planRoutes, rankPlans } from "../core/planner";
@@ -13,10 +12,13 @@ import { analyzePlan, strictRefiner } from "../core/roads";
 import { FallbackProvider, OsrmProvider, ValhallaProvider } from "../core/routing";
 import { DEFAULT_PREFS, STUDENT_PLAN, type Place, type Plan, type RoadPrefs, type Station } from "../core/types";
 import { BikeIcon, MoonIcon, PinIcon, SearchIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
-import { haversine } from "../core/geo";
 import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
+import { DockMenu } from "./DockMenu";
+import { PencilIcon } from "./icons";
+import { editChain, type DockAction } from "../core/dockActions";
 import { PlanCard } from "./PlanCard";
+import { NavSheet } from "./NavSheet";
 import { TerrainPicker } from "./TerrainPicker";
 
 type Target = "origin" | "destination";
@@ -43,6 +45,8 @@ export function App() {
   const [prefs, setPrefs] = useState<RoadPrefs>(DEFAULT_PREFS);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState(0);
+  const [editing, setEditing] = useState(false); // editing the docks of the custom route
+  const [dockMenu, setDockMenu] = useState<Station | null>(null); // a dock was long-pressed
   const [status, setStatus] = useState<string>("Loading docks…");
   const [busy, setBusy] = useState(false);
   const [backup, setBackup] = useState("");
@@ -105,7 +109,8 @@ export function App() {
       const el = card.querySelector(sel) as HTMLElement | null;
       return el ? el.getBoundingClientRect().bottom - c.top + extra : c.height;
     };
-    const shown = [at(".stats", 16), at(".tl", 16), c.height + 14];
+    const full = c.height + 14;
+    const shown = card.classList.contains("edit-card") ? [at(".stats", 18), full, full] : [at(".stats", 64), at(".tl", 64), full];
     setLevels(shown.map((v, i) => (i === 2 ? 0 : Math.max(0, Math.round(H - (top + v + 14))))));
   }, [slidingRoutes, plans, selected, fitH]);
   useEffect(() => {
@@ -134,7 +139,7 @@ export function App() {
     JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, prefs]);
   const [doneSig, setDoneSig] = useState("");
   useEffect(() => { if (strip.current) strip.current.scrollLeft = 0; }, [plans]);
-  const goBack = () => { setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
+  const goBack = () => { setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
   // On phones the route cards sit in a sideways, snapping strip: swiping to a card selects it, tapping a card scrolls it into view.
   const strip = useRef<HTMLUListElement>(null);
   const cardAt = (i: number) => strip.current?.children[i] as HTMLElement | undefined;
@@ -170,6 +175,7 @@ export function App() {
   const justDragged = useRef(false);
   const onStripDown = (e: React.PointerEvent<HTMLUListElement>) => {
     if (phone || e.pointerType !== "mouse" || e.button !== 0) return;
+    if ((e.target as Element).closest(".edit-card")) return; // the editor handles its own drags; the strip must not steal the pointer
     stripDrag.current = { x: e.clientX, last: e.clientX, left: e.currentTarget.scrollLeft, moved: false, id: e.pointerId, from: selected };
   };
   const onStripMove = (e: React.PointerEvent<HTMLUListElement>) => {
@@ -416,7 +422,7 @@ export function App() {
   const go = async (from: Place | null = origin, to: Place | null = destination) => {
     if (!from || !to) return;
     const [origin, destination] = [from, to]; // an explicit pair wins over state that hasn't updated yet
-    setBusy(true); setPlans([]); setSelected(0); setBackup(""); setStatus("Finding routes…");
+    setBusy(true); setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus("Finding routes…");
     const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
     // Without swaps there is one ride, so the only limit that matters is the free ride time.
     const limit = swapsOn ? maxRide : STUDENT_PLAN.freeMinutes;
@@ -466,12 +472,62 @@ export function App() {
 
   const plan = plans[selected] ?? null;
   const ride = useRide(plan, destination, destination?.label.split(",")[0]);
+  const [dockH, setDockH] = useState(0); // height of ride mode's bottom panel
+  const [legFocus, setLegFocus] = useState(0);
   const startRide = () => { ride.start(); setSnap("peek"); };
-  const leg = ride.legs[ride.index];
-  const left = leg && ride.pos ? formatDistance(haversine(ride.pos, leg.to)) : null;
+
+  // ---- Custom route: the rider picks the docks (pencil on a card, or a dock's popup / long-press menu on the map) ----
+  const bikePlan = plan && !plan.walkOnly ? plan : null;
+  const chainIds = bikePlan ? bikePlan.stations.map((s) => s.id) : null;
+  const rebuildCustom = async (chain: Station[]) => {
+    if (!origin || !destination) return;
+    setBusy(true);
+    setStatus("Updating your route…");
+    try {
+      const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
+      let np = await buildCustomPlan(origin, destination, chain, provider, { maxRideMinutes: swapsOn ? maxRide : STUDENT_PLAN.freeMinutes });
+      try { np = { ...np, roads: await analyzePlan(np) }; } catch { /* road types are a bonus */ }
+      setPlans((prev) => [np, ...prev.filter((p) => p.id !== "custom")]);
+      setSelected(0);
+      setDetail(0);
+      setStatus("");
+    } catch (e) {
+      setStatus(`Couldn't build that route (${(e as Error).message}). Try different docks.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const startEdit = (p: Plan) => {
+    const swaps = p.stations.length - 2;
+    const kind = swaps === 0 ? "Direct" : swaps === 1 ? "1 swap" : `${swaps} swaps`;
+    const cp: Plan = p.id === "custom" ? p : { ...p, id: "custom", label: `Custom route · ${kind}`, directRideMinutes: null, detourMinutes: 0 };
+    setPlans((prev) => [cp, ...prev.filter((x) => x.id !== "custom")]);
+    setSelected(0);
+    setDetail(1); // the editor opens fully; drag it down to peek at the map
+    setEditing(true);
+  };
+  const discardCustom = () => { setEditing(false); setPlans((prev) => prev.filter((p) => p.id !== "custom")); setSelected(0); };
+  const onDockAction = (s: Station, act: DockAction) => {
+    setDockMenu(null);
+    if (act === "start" || act === "end") {
+      const t: Target = act === "start" ? "origin" : "destination";
+      const pl: Place = { lat: s.lat, lon: s.lon, label: s.name };
+      set(t, pl);
+      setText((x) => ({ ...x, [t]: s.name }));
+      autoGo(t, pl);
+      return;
+    }
+    if (!bikePlan) return;
+    const next = editChain(bikePlan.stations, s, act);
+    if (!next) return;
+    if (bikePlan.id !== "custom") startEdit(bikePlan);
+    setEditing(true);
+    rebuildCustom(next);
+  };
+  const rideLeg = ride.active && !ride.done ? ride.legs[ride.index]?.geometry ?? null : null;
 
   return (
-    <div className={`app${ride.active ? " riding" : ""}`} style={{ ["--sheet-h" as string]: `${ride.active ? 0 : sheetH}px` }}>
+    <div className={`app${ride.active ? " riding" : ""}`} style={{ ["--sheet-h" as string]: `${ride.active ? dockH : sheetH}px` }}>
       <MapView
         center={MAP_CENTER}
         stations={stations}
@@ -481,7 +537,7 @@ export function App() {
         boundary={boundary}
         pin={menu}
         focus={focus}
-        coveredBottom={isPhone() && !ride.active ? Math.min(sheetH, Math.round(vh * 0.6)) : 0}
+        coveredBottom={ride.active ? dockH : isPhone() ? Math.min(sheetH, Math.round(vh * 0.6)) : 0}
         onMapClick={onMapClick}
         onLongPress={onLongPress}
         onMovePoint={onMovePoint}
@@ -489,34 +545,29 @@ export function App() {
         loadedAt={loadedAt}
         refreshing={refreshing}
         onRefresh={refreshStations}
-        follow={ride.follow}
+        follow={false}
+        leg={rideLeg}
+        legFocus={legFocus}
         compass={ride.active}
         dark={dark}
         heading={ride.active ? ride.heading : null}
         onUserPan={() => ride.setFollow(false)}
+        chainIds={chainIds}
+        onDockAction={onDockAction}
+        onDockPress={(s) => setDockMenu(s)}
       />
-      {ride.active && (
-        <div className="ride-bar" role="status">
-          {ride.error ? (
-            <div className="ride-main"><b>{ride.error}</b></div>
-          ) : ride.done ? (
-            <div className="ride-main"><b>You've arrived</b><span>Enjoy!</span></div>
-          ) : leg ? (
-            <>
-              <span className={`ride-ico ${leg.kind}`}>{leg.kind === "ride" ? <BikeIcon size={22} /> : <WalkIcon size={22} />}</span>
-              <div className="ride-main">
-                <b>{leg.kind === "ride" ? "Ride" : "Walk"} to {leg.toName}</b>
-                <span>
-                  {left ? `${left} to go` : "Finding your location…"} · step {ride.index + 1} of {ride.legs.length}
-                  {leg.swap ? " · dock your bike here, then rent another" : ""}
-                </span>
-              </div>
-            </>
-          ) : null}
-          <div className="ride-btns">
-            <button className="end" onClick={ride.stop}>End</button>
-          </div>
-        </div>
+      {ride.active && plan && !plan.walkOnly && destination && (
+        <NavSheet
+          plan={plan}
+          legs={ride.legs}
+          index={ride.index}
+          onIndex={(i) => { ride.setIndex(Math.max(0, Math.min(ride.legs.length, i))); setLegFocus((n) => n + 1); }}
+          pos={ride.pos}
+          error={ride.error}
+          destinationName={destination.label || "your destination"}
+          onStop={ride.stop}
+          onHeight={setDockH}
+        />
       )}
       {busy && (
         <div className="working-pill" role="status" aria-live="polite">
@@ -524,21 +575,28 @@ export function App() {
         </div>
       )}
       {ride.active && !ride.done && !ride.follow && (
-        <button className="recenter" onClick={() => ride.setFollow(true)} aria-label="Recenter on me">
-          <TargetIcon size={20} /> Recenter
+        <button className="recenter" onClick={() => { ride.setFollow(true); setLegFocus((n) => n + 1); }} aria-label="Show this leg">
+          <TargetIcon size={20} /> Show leg
         </button>
       )}
       {plan && !plan.walkOnly && !ride.active && (
         <button className="start-fab" onClick={startRide}><BikeIcon size={20} /> Start</button>
       )}
       {plans.length > 0 && !ride.active && (
-        <button className="back-fab" onClick={goBack}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
-          Back
-        </button>
+        <div className="back-row">
+          <button className="back-fab" onClick={goBack}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+            Back
+          </button>
+          {bikePlan && !(editing && bikePlan.id === "custom") && (
+            <button className="edit-fab" onClick={() => startEdit(bikePlan)} aria-label="Edit this route's docks" title="Edit docks">
+              <PencilIcon size={20} />
+            </button>
+          )}
+        </div>
       )}
       {themeBtn("on-desktop")}
-      <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null ? " dragging" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={levels && slidingRoutes ? { transform: `translateY(${slideDrag ?? levels[detail]}px)` } : undefined}>
+      <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null ? " dragging" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
         <button className="panel-back" onClick={goBack}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
           Back
@@ -673,14 +731,14 @@ export function App() {
           </div>
 
           <div className="strip-wrap">
-            {!phone && plans.length > 1 && (
+            {!phone && !editing && plans.length > 1 && (
               <button className="strip-arrow left" onClick={() => step(-1)} disabled={selected === 0} aria-label="Previous route">‹</button>
             )}
             <ul
               className="plans"
               ref={strip}
               onScroll={onStripScroll}
-              onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, vert: false }; }}
+              onTouchStart={(e) => { touch.current = (e.target as Element).closest(".tile") ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY, vert: false }; }} // grabbing a dock tile reorders; it must not slide the sheet
               onTouchMove={(e) => {
                 const t = touch.current;
                 if (!t || !phone || !levels) return;
@@ -706,11 +764,25 @@ export function App() {
               onPointerCancel={onStripUp}
               onClickCapture={(e) => { if (justDragged.current) { e.stopPropagation(); e.preventDefault(); } }}
             >
-              {plans.map((p, i) => (
-                <PlanCard key={p.id} plan={p} index={i} selected={i === selected} trafficLevel={prefs.traffic} onSelect={() => selectCard(i)} />
+              {(editing ? plans.filter((p) => p.id === "custom") : plans).map((p, i) => (
+                <PlanCard
+                  key={p.id}
+                  plan={p}
+                  index={i}
+                  selected={i === selected}
+                  trafficLevel={prefs.traffic}
+                  onSelect={() => selectCard(i)}
+                  onEdit={p.walkOnly ? undefined : () => startEdit(p)}
+                  editing={editing && p.id === "custom"}
+                  onRemoveStop={(k) => { const next = p.stations.filter((_, j) => j !== k); if (next.length >= 2) rebuildCustom(next); }}
+                  onReorder={(next) => rebuildCustom(next)}
+                  onDone={() => setEditing(false)}
+                  onDiscard={discardCustom}
+                  onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })}
+                />
               ))}
             </ul>
-            {!phone && plans.length > 1 && (
+            {!phone && !editing && plans.length > 1 && (
               <button className="strip-arrow right" onClick={() => step(1)} disabled={selected === plans.length - 1} aria-label="Next route">›</button>
             )}
           </div>
@@ -719,6 +791,7 @@ export function App() {
           <img src="/madison-bcycle-logo.png" alt="Madison BCycle" height={30} />
         </a>
       </aside>
+      {dockMenu && <DockMenu station={dockMenu} chainIds={chainIds} onAction={onDockAction} onClose={() => setDockMenu(null)} />}
       {menu && (
         <PlaceMenu
           lat={menu.lat}

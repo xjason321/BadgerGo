@@ -17,9 +17,14 @@ export const levelOf = (n: number): Level => (n > FEW ? "ok" : n > 0 ? "low" : "
  * (pick-up) or a space to return one (swap or end). Off the route it's how full the dock is, as a
  * share of its capacity, shown as a fill level.
  */
-export function dockRing(s: Station, role: DockRole): Ring {
+export function dockRing(s: Station, role: DockRole, kind?: StopKind): Ring {
   if (role === "pickup") {
     const level = levelOf(s.isRenting ? s.bikesAvailable : 0);
+    return { kind: "status", level, color: RING_COLORS[level] };
+  }
+  if (role === "dropoff" && kind === "swap") {
+    // A swap stop needs both a space to return your bike and a bike to take: the ring shows the same verdict as the note.
+    const level = dockNote(s, "swap").level;
     return { kind: "status", level, color: RING_COLORS[level] };
   }
   if (role === "dropoff") {
@@ -46,7 +51,7 @@ export function dockNote(s: Station, kind: StopKind): DockNote {
     return pick(levelOf(docks), "Plenty of open docks for your bike", "Few open docks. Returning here is risky", "No open docks for your bike. Choose another end dock");
   const b = levelOf(bikes), d = levelOf(docks);
   if (b === "ok" && d === "ok") return { level: "ok", text: "Plenty of docks to swap here and bikes to take" };
-  if (d === "none") return { level: "none", text: "No open docks to return your bike. Swap won't work here" };
-  if (b === "none") return { level: "none", text: "No bikes to swap onto here. Swap won't work" };
+  if (d === "none") return { level: "none", text: "No open docks to return your bike. Swapping may not be possible" };
+  if (b === "none") return { level: "low", text: "No bikes to swap onto here. You would keep your current bike" };
   return { level: worst(b, d), text: d === "low" && b === "low" ? "Few docks and few bikes. Swapping here is risky" : d === "low" ? "Few open docks to return your bike. Swapping here is risky" : "Few bikes to swap onto. Swapping here is risky" };
 }

@@ -508,6 +508,58 @@ export async function planRoutes(
 }
 
 
+/**
+ * Build one plan from docks the rider picked: walk -> ride -> (swap -> ride)* -> walk.
+ * `chain` is pick-up, any swap docks, drop-off. Throws when any leg can't be routed.
+ */
+export async function buildCustomPlan(
+  origin: LatLng,
+  destination: LatLng,
+  chain: Station[],
+  provider: RoutingProvider,
+  opts: Pick<PlanOptions, "maxRideMinutes" | "pricing" | "swapMinutes" | "refineRide">,
+): Promise<Plan> {
+  if (chain.length < 2) throw new Error("A route needs a pick-up and a drop-off dock.");
+  const pricing = opts.pricing ?? STUDENT_PLAN;
+  const swapMin = opts.swapMinutes ?? SWAP_MINUTES;
+  const first = <T,>(r: T[], what: string) => {
+    if (!r.length) throw new Error(`No ${what} route`);
+    return r[0];
+  };
+  const start = chain[0];
+  const last = chain[chain.length - 1];
+  const [walkTo, walkFrom, ...rides] = await Promise.all([
+    provider.route("walk", origin, start, false).then((r) => first(r, "walking")),
+    provider.route("walk", last, destination, false).then((r) => first(r, "walking")),
+    ...chain.slice(1).map((to, i) =>
+      provider.route("bike", chain[i], to, false).then(async (r) => {
+        const seg = first(r, "bike");
+        return opts.refineRide ? opts.refineRide(seg, chain[i], to) : seg;
+      }),
+    ),
+  ]);
+  const mins = rides.map((r) => r.durationMin);
+  const rideMinutes = mins.reduce((a, b) => a + b, 0);
+  const swapsUsed = chain.length - 2;
+  const kind = swapsUsed === 0 ? "Direct" : swapsUsed === 1 ? "1 swap" : `${swapsUsed} swaps`;
+  return {
+    id: "custom",
+    stations: chain,
+    walkToDock: walkTo,
+    rides,
+    walkFromDock: walkFrom,
+    rideMinutes,
+    longestRideMinutes: Math.max(...mins),
+    swapMinutes: swapsUsed * swapMin,
+    overageCost: mins.reduce((a, m) => a + overageCost(m, pricing), 0),
+    withinLimit: mins.every((m) => m <= opts.maxRideMinutes),
+    totalMinutes: walkTo.durationMin + rideMinutes + swapsUsed * swapMin + walkFrom.durationMin,
+    directRideMinutes: null,
+    detourMinutes: 0,
+    label: `Custom route · ${kind}`,
+  };
+}
+
 /** Above this share of a route on bikeways less separated than your limit, it ranks behind cleaner ones. */
 export const EXPOSURE_TOLERANCE = 0.1;
 

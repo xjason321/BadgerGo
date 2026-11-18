@@ -359,6 +359,23 @@ export function App() {
                   onBlur={() => setTimeout(() => setSugg((x) => (x?.t === t ? null : x)), 150)}
                   onKeyDown={(e) => e.key === "Enter" && search(t)}
                 />
+                {t === "destination" && text.destination && (
+                  <button
+                    className="icon-btn clear-btn"
+                    onClick={() => {
+                      setText((x) => ({ ...x, destination: "" }));
+                      setDestination(null);
+                      setPlans([]);
+                      setSelected(0);
+                      setSugg(null);
+                      setStatus("End cleared. Search or pick a new end point.");
+                    }}
+                    title="Clear end"
+                    aria-label="Clear end"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                  </button>
+                )}
                 {t === "origin" && (
                   <button className="icon-btn" onClick={useMyLocation} disabled={busy} title="Use my location" aria-label="Use my location">
                     <TargetIcon />
@@ -399,7 +416,7 @@ export function App() {
             {swapsOn ? (
               <div className="indent">
                 <div className="slider-head"><span>Max time between docks (for comfort)</span><b>{maxRide} min</b></div>
-                <input type="range" min={5} max={120} step={5} value={maxRide} onChange={(e) => setMaxRide(+e.target.value)} />
+                <input type="range" min={5} max={30} step={5} value={maxRide} onChange={(e) => setMaxRide(+e.target.value)} />
               </div>
             ) : (
               <p className="muted">Keep in mind that BCycle's student plan is first 30 min free, then $8 per extra 30 min.</p>

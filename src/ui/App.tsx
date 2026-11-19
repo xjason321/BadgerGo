@@ -15,6 +15,7 @@ import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { NearestDocks } from "./NearestDocks";
 import { WeatherChip } from "./WeatherChip";
+import { googleDirectUrl } from "../core/navLinks";
 import { useRideCues } from "./useRideCues";
 import { readCues, writeCues } from "../core/cues";
 import { ago, loadStations } from "../core/stationCache";
@@ -689,6 +690,9 @@ export function App() {
       )}
       {plan && !plan.walkOnly && !ride.active && (
         <button className="start-fab" onClick={startRide}><BikeIcon size={20} /> Start</button>
+      )}
+      {plan?.walkOnly && destination && !ride.active && (
+        <a className="start-fab" href={googleDirectUrl(destination, "walking")} target="_blank" rel="noreferrer"><WalkIcon size={20} /> Start</a>
       )}
       {plans.length > 0 && !ride.active && (
         <div className="back-row">

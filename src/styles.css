@@ -713,3 +713,20 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 /* ---------- saved places ---------- */
 .star-btn.star-on { color: #b7791f; }
 .star-btn.star-on svg { fill: currentColor; }
+
+/* ---------- nearest bike / dock ---------- */
+.near { display: grid; gap: 8px; margin-top: 12px; }
+.near-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.near-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 12px; background: var(--soft); color: var(--g800); font-weight: 700; font-size: 13.5px; cursor: pointer; }
+.near-btn.on { background: var(--g800); color: #fff; }
+.near-btn:disabled { opacity: .5; cursor: default; }
+.near-note { margin: 0; font-size: 13px; opacity: .75; }
+.near-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.near-list li { display: flex; gap: 8px; align-items: stretch; }
+.near-info { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; border: 0; border-radius: 12px; padding: 9px 12px; background: var(--soft); color: inherit; cursor: pointer; }
+.near-info b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.near-info span { font-size: 12.5px; opacity: .7; }
+.near-go { display: grid; place-items: center; min-width: 56px; border-radius: 12px; background: var(--lime); color: #0b3b25; font-weight: 800; text-decoration: none; }
+[data-theme="dark"] .near-btn { color: var(--lime); }
+[data-theme="dark"] .near-btn.on { background: var(--lime); color: #062a1a; }
+[data-theme="dark"] .star-btn.star-on { color: #fbbf24; }

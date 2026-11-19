@@ -14,6 +14,7 @@ import { DEFAULT_PREFS, STUDENT_PLAN, type Place, type Plan, type RoadPrefs, typ
 import { BikeIcon, InfoIcon, MoonIcon, PinIcon, SearchIcon, StarIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
 import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
+import { NearestDocks } from "./NearestDocks";
 import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
 import { DockMenu } from "./DockMenu";
 import { PencilIcon } from "./icons";
@@ -761,6 +762,7 @@ export function App() {
           <button className="primary form-only" onClick={() => go()} disabled={!origin || !destination || !stations.length || busy || (plans.length > 0 && sigOf(origin, destination) === doneSig)}>
             {busy ? "Working…" : "Find routes"}
           </button>
+          {!plans.length && <NearestDocks stations={stations} onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })} />}
           {plans.length > 0 && !ride.active && (
             <div className="trip-head">
               <h2 className="trip-title">

@@ -62,3 +62,15 @@ export function backupDocks(plan: { stations: Station[] }, stations: Station[], 
     dropoff: best(last, canDock),
   };
 }
+
+/** A dock with a bike to take right now. */
+export const hasBike = (s: Station) => s.isRenting && s.bikesAvailable > 0;
+
+/** The closest stations to `from` that have a bike, nearest first. */
+export function nearestBikes(from: LatLng, stations: Station[], limit = 3): DockChoice[] {
+  return stations
+    .filter(hasBike)
+    .map((station) => ({ station, meters: haversine(from, station) }))
+    .sort((a, b) => a.meters - b.meters)
+    .slice(0, limit);
+}

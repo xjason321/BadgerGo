@@ -81,3 +81,17 @@ describe("backupDocks", () => {
     expect(backupDocks({ stations: [A, B, st("mid", 43.075, -89.4, 2)] }, [A, B, st("mid", 43.075, -89.4, 2)]).pickup).toBeNull();
   });
 });
+
+import { hasBike, nearestBikes } from "./dockNow";
+describe("nearestBikes", () => {
+  const b = (id: string, lat: number, bikes: number, renting = true) => ({ ...st(id, lat, -89.4, 1), bikesAvailable: bikes, isRenting: renting });
+  const pool = [b("far", 43.08, 5), b("near", 43.071, 2), b("empty", 43.0702, 0), b("closed", 43.0703, 6, false), b("mid", 43.074, 1)];
+  it("lists the nearest docks that have a bike, skipping empty and non-renting ones", () => {
+    expect(nearestBikes(here, pool).map((d) => d.station.id)).toEqual(["near", "mid", "far"]);
+    expect(hasBike(pool[3])).toBe(false);
+  });
+  it("respects the limit and handles no bikes at all", () => {
+    expect(nearestBikes(here, pool, 1)).toHaveLength(1);
+    expect(nearestBikes(here, [b("e", 43.07, 0)])).toEqual([]);
+  });
+});

@@ -15,6 +15,7 @@ import { BikeIcon, InfoIcon, MoonIcon, PinIcon, SearchIcon, StarIcon, SunIcon, T
 import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { NearestDocks } from "./NearestDocks";
+import { WeatherChip } from "./WeatherChip";
 import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
 import { DockMenu } from "./DockMenu";
 import { PencilIcon } from "./icons";
@@ -774,6 +775,7 @@ export function App() {
               </button>
             </div>
           )}
+          {!ride.active && <WeatherChip lat={(origin ?? destination)?.lat ?? 43.0731} lon={(origin ?? destination)?.lon ?? -89.4012} tripMinutes={plans.length ? plans[selected]?.totalMinutes ?? 30 : 30} />}
           {(status || canRefresh || refreshing) && <p className="status">
             {status}
             {(canRefresh || refreshing) && (

@@ -730,3 +730,10 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 [data-theme="dark"] .near-btn { color: var(--lime); }
 [data-theme="dark"] .near-btn.on { background: var(--lime); color: #062a1a; }
 [data-theme="dark"] .star-btn.star-on { color: #fbbf24; }
+
+/* ---------- weather chips ---------- */
+.wx { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.wx-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 999px; background: var(--soft); color: var(--g800); font-size: 12.5px; font-weight: 700; }
+.wx-chip.warn { background: #f59e0b30; color: #92400e; box-shadow: inset 0 0 0 1px #f59e0b66; }
+[data-theme="dark"] .wx-chip { color: #ffffffd0; }
+[data-theme="dark"] .wx-chip.warn { color: #fcd34d; }

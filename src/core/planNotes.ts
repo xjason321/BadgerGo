@@ -35,6 +35,12 @@ export function describePlans(all: Plan[]): Record<string, string> {
   const give = (p: Plan | null, text: string) => { if (p) tags.set(p.id, [...(tags.get(p.id) ?? []), text]); };
   if (plans.length >= 2) {
     give(uniqueBest(plans, (p) => p.totalMinutes, 1), "Fastest");
+    // When going faster would cost money, say which route is quickest without paying anything extra.
+    const free = plans.filter((p) => p.overageCost === 0);
+    const fastestOverall = uniqueBest(plans, (p) => p.totalMinutes, 1);
+    if (free.length && free.length < plans.length && !(fastestOverall && fastestOverall.overageCost === 0)) {
+      give(free.length === 1 ? free[0] : uniqueBest(free, (p) => p.totalMinutes, 1), free.length === 1 ? "Only free route" : "Fastest that's free");
+    }
     give(uniqueBest(plans, (p) => p.overageCost, 1), "Cheapest");
     give(uniqueBest(plans, protectedShare, 0.1, true), "Most protected from traffic");
     give(uniqueBest(plans, (p) => p.rideMinutes, 1), "Least time on a bike");

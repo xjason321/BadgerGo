@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import swSource from "../../public/sw.js?raw";
 
 /** Load public/sw.js against an in-memory Cache API and a controllable network. */
 function worker() {
@@ -20,7 +20,7 @@ function worker() {
   };
   const handlers: Record<string, (e: any) => void> = {};
   const self = { addEventListener: (t: string, h: (e: any) => void) => { handlers[t] = h; }, skipWaiting: () => {}, clients: { claim: async () => {} } };
-  new Function("self", "caches", "fetch", "location", "setTimeout", "Response", "URL", readFileSync("public/sw.js", "utf8"))(self, caches, fetcher, { origin: "https://badgergo.app" }, setTimeout, Response, URL);
+  new Function("self", "caches", "fetch", "location", "setTimeout", "Response", "URL", swSource)(self, caches, fetcher, { origin: "https://badgergo.app" }, setTimeout, Response, URL);
   /** Run a request through the worker: its response, or null when the worker doesn't touch it. */
   const run = async (url: string, init: { method?: string; mode?: string } = {}): Promise<Response | null> => {
     const req = { url, method: init.method ?? "GET", mode: init.mode ?? "no-cors" } as unknown as Request;

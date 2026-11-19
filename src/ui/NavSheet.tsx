@@ -6,7 +6,7 @@ import { fullReason, fullWarning, nearestOpenDocks, type DockChoice } from "../c
 import { formatDistance } from "../core/ride";
 import { clock, type TimerAlert, type TimerState } from "../core/bikeTimer";
 import type { LatLng, Plan, Station } from "../core/types";
-import { BikeIcon, CheckIcon, ClockIcon, CloseIcon, WalkIcon } from "./icons";
+import { BikeIcon, CheckIcon, ClockIcon, CloseIcon, VolumeIcon, VolumeOffIcon, WalkIcon } from "./icons";
 
 type App = "google" | "apple";
 const KEY = "badgergo.navApp";
@@ -31,6 +31,9 @@ interface Props {
   onHeight: (h: number) => void;
   /** Live station data, for "dock now" and full-dock warnings. */
   stations: Station[];
+  /** Voice and vibration cues on leg changes. */
+  cues: boolean;
+  onCues: () => void;
   /** Show a station on the map. */
   onFocusStation: (s: Station) => void;
   /** The bike timer: running or not, its numbers, the latest alert, and start / stop. */
@@ -38,7 +41,7 @@ interface Props {
 }
 
 /** Ride mode's bottom panel: the current leg (the map above frames it), arrows between legs, and a hand-off to Google / Apple Maps. */
-export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, timer, stations, onFocusStation }: Props) {
+export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, timer, stations, onFocusStation, cues, onCues }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const [dockList, setDockList] = useState(false);
   const ios = isIos();
@@ -67,6 +70,7 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, t
   return (
     <div className="nav-dock" ref={el} role="region" aria-label="Your trip">
       <button className="nav-x" onClick={onStop} aria-label="End ride mode"><CloseIcon size={18} /></button>
+      <button className={`nav-cue${cues ? " on" : ""}`} onClick={onCues} aria-pressed={cues} aria-label={cues ? "Turn off voice and vibration cues" : "Turn on voice and vibration cues"} title={cues ? "Voice and vibration on" : "Voice and vibration off"}>{cues ? <VolumeIcon size={18} /> : <VolumeOffIcon size={18} />}</button>
       <ol className="nav-steps" aria-label="Trip legs" style={{ "--n": legs.length } as React.CSSProperties}>
         {legs.map((l, i) => (
           <li key={i} className={i < index ? "past" : i === index ? "now" : ""}>

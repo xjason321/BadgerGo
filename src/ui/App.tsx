@@ -15,6 +15,8 @@ import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { NearestDocks } from "./NearestDocks";
 import { WeatherChip } from "./WeatherChip";
+import { useRideCues } from "./useRideCues";
+import { readCues, writeCues } from "../core/cues";
 import { ago, loadStations } from "../core/stationCache";
 import { clearSession, readSession, saveSession, type Session } from "../core/rideSession";
 import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
@@ -541,6 +543,8 @@ export function App() {
   }, [ride.active]);
 
   const timer = useBikeTimer();
+  const [cues, setCues] = useState(() => readCues());
+  useRideCues(cues, ride.active, ride.legs, ride.index);
   // Reaching the end of a ride leg (a dock) means the bike is docked: stop the timer.
   const prevLeg = useRef(0);
   useEffect(() => {
@@ -667,6 +671,8 @@ export function App() {
           onStop={() => { if (ride.done) timer.stop(); ride.stop(); }}
           onHeight={setDockH}
           timer={timer}
+          cues={cues}
+          onCues={() => setCues((c) => { writeCues(!c); return !c; })}
           stations={stations}
           onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })}
         />

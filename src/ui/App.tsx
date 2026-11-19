@@ -11,9 +11,10 @@ import { planRoutes, rankPlans } from "../core/planner";
 import { analyzePlan, strictRefiner } from "../core/roads";
 import { FallbackProvider, OsrmProvider, ValhallaProvider } from "../core/routing";
 import { DEFAULT_PREFS, STUDENT_PLAN, type Place, type Plan, type RoadPrefs, type Station } from "../core/types";
-import { BikeIcon, InfoIcon, MoonIcon, PinIcon, SearchIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
+import { BikeIcon, InfoIcon, MoonIcon, PinIcon, SearchIcon, StarIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
 import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
+import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
 import { DockMenu } from "./DockMenu";
 import { PencilIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
@@ -335,6 +336,17 @@ export function App() {
   const set = (t: Target, p: Place) => (t === "origin" ? setOrigin(p) : setDestination(p));
 
   const [sugg, setSugg] = useState<{ t: Target; items: CampusPlace[] } | null>(null);
+  /** Saved places (starred) and the last places searched, kept on this device. */
+  const [mine, setMine] = useState<Places>(() => readPlaces());
+  const updateMine = (f: (p: Places) => Places) => setMine((cur) => { const next = f(cur); writePlaces(next); return next; });
+  /** With an empty box, offer the saved places first, then the recent ones. */
+  const showMine = (t: Target) => {
+    const items: CampusPlace[] = [
+      ...mine.saved.map((m) => ({ name: m.name, lat: m.lat, lon: m.lon, address: "★ Saved place", kind: "n" as const })),
+      ...mine.recents.map((m) => ({ name: m.name, lat: m.lat, lon: m.lon, address: "Recent search", kind: "n" as const })),
+    ];
+    setSugg(items.length ? { t, items } : null);
+  };
   /** A start or end was just chosen: if the other one is set too, find routes right away. */
   const autoGo = (t: Target, p: Place) => {
     if (!stations.length) return;
@@ -463,6 +475,7 @@ export function App() {
     if (!from || !to) return;
     const [origin, destination] = [from, to]; // an explicit pair wins over state that hasn't updated yet
     setBusy(true); setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus("Finding routes…");
+    updateMine((m) => [from, to].filter(rememberable).reduce((acc, pl) => addRecent(acc, toStored(pl)), m));
     const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
     // Without swaps there is one ride, so the only limit that matters is the free ride time.
     const limit = swapsOn ? maxRide : STUDENT_PLAN.freeMinutes;
@@ -681,8 +694,9 @@ export function App() {
                   aria-label={t === "origin" ? "Start" : "End"}
                   onChange={(e) => {
                     setText({ ...text, [t]: e.target.value });
-                    onType(t, e.target.value);
+                    if (e.target.value.trim()) onType(t, e.target.value); else showMine(t);
                   }}
+                  onFocus={() => { if (!text[t].trim()) showMine(t); }}
                   onBlur={() => setTimeout(() => setSugg((x) => (x?.t === t ? null : x)), 150)}
                   onKeyDown={(e) => e.key === "Enter" && search(t)}
                 />
@@ -716,6 +730,16 @@ export function App() {
                 >
                   <PinIcon />
                 </button>
+                {(() => {
+                  const pl = t === "origin" ? origin : destination;
+                  if (!pl || !rememberable(pl)) return null;
+                  const on = isSaved(mine, toStored(pl));
+                  return (
+                    <button className={`icon-btn star-btn${on ? " star-on" : ""}`} onClick={() => updateMine((m) => toggleSaved(m, toStored(pl)))} title={on ? "Remove from saved places" : "Save this place"} aria-label={on ? "Remove from saved places" : "Save this place"} aria-pressed={on}>
+                      <StarIcon />
+                    </button>
+                  );
+                })()}
                 <button className="icon-btn" onClick={() => search(t)} disabled={busy} title="Search" aria-label="Search">
                   <SearchIcon />
                 </button>

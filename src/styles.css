@@ -776,3 +776,12 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .near-info { background: #ffffff1a; color: #fff; }
 .near-info span { color: #ffffffb0; opacity: 1; }
 .near-note { color: #ffffffc0; opacity: 1; }
+
+/* ---------- weather on the routes screen ---------- */
+.wx-map { display: none; }
+@media (max-width: 899px) {
+  .panel.show-routes .wx-in { display: none; }
+  .wx-map { display: flex; flex-direction: column; align-items: flex-start; position: fixed; z-index: 700; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 12px; max-width: calc(100vw - 84px); margin: 0; pointer-events: none; }
+  .wx-map .wx-chip { background: #0b3b25e6; color: #fff; box-shadow: 0 2px 10px #0005; backdrop-filter: blur(4px); }
+  .wx-map .wx-chip.warn { background: #78350fe6; color: #fde68a; box-shadow: 0 2px 10px #0005, inset 0 0 0 1px #f59e0b88; }
+}

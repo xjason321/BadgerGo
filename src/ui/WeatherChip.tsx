@@ -6,7 +6,7 @@ const cache = new Map<string, { w: Weather; at: number }>();
 const TTL_MS = 10 * 60_000;
 
 /** Conditions for the ride: temperature, sky, sunset, plus warnings (rain during the trip, dark by arrival, wind, cold). */
-export function WeatherChip({ lat, lon, tripMinutes }: { lat: number; lon: number; tripMinutes: number }) {
+export function WeatherChip({ lat, lon, tripMinutes, className = "" }: { lat: number; lon: number; tripMinutes: number; className?: string }) {
   const [w, setW] = useState<Weather | null>(null);
   const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
   useEffect(() => {
@@ -22,7 +22,7 @@ export function WeatherChip({ lat, lon, tripMinutes }: { lat: number; lon: numbe
   const now = Math.floor(Date.now() / 1000);
   const warn = notes(w, now, tripMinutes);
   return (
-    <div className="wx" aria-label="Weather for your ride">
+    <div className={`wx ${className}`} aria-label="Weather for your ride">
       <span className="wx-chip">{summary(w, now)}</span>
       {warn.map((n) => <span key={n.kind} className="wx-chip warn"><AlertIcon size={13} /> {n.text}</span>)}
     </div>

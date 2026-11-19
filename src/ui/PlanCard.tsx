@@ -36,10 +36,12 @@ interface Props {
   onFocusStation?: (s: Station) => void;
   /** Live docks, used to suggest backups near the pick-up and drop-off. */
   stations?: Station[];
+  /** How this route differs from the others, shown under its name. */
+  blurb?: string;
 }
 
 /** One route suggestion: headline numbers, then the trip step by step. */
-export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, stations }: Props) {
+export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, stations, blurb }: Props) {
   if (p.walkOnly) return <WalkCard plan={p} index={index} selected={selected} onSelect={onSelect} />;
   if (editing) return <EditCard plan={p} onRemoveStop={onRemoveStop} onReorder={onReorder} onDone={onDone} onDiscard={onDiscard} onFocusStation={onFocusStation} />;
   const swaps = p.stations.length - 2;
@@ -56,7 +58,7 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
         <span className="rank">{index + 1}</span>
         <div className="plan-title">
           <b>{name}</b>
-          <span>{kind}</span>
+          <span>{blurb ?? kind}</span>
         </div>
         {p.withinLimit ? (
           <span className="chip good"><CheckIcon size={14} /> {p.overageCost ? `+$${p.overageCost}` : "Free"}</span>

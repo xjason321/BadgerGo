@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BOUNDARY_OSM_ID, MAP_CENTER, SEARCH_VIEWBOX, SYSTEM_ID } from "../config";
 import { KINDS } from "../core/bikeways";
 import { loadBoundary, type Boundary } from "../core/boundary";
@@ -15,6 +15,7 @@ import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { NearestDocks } from "./NearestDocks";
 import { WeatherChip } from "./WeatherChip";
+import { describePlans } from "../core/planNotes";
 import { googleDirectUrl } from "../core/navLinks";
 import { useRideCues } from "./useRideCues";
 import { readCues, writeCues } from "../core/cues";
@@ -533,6 +534,7 @@ export function App() {
   };
 
   const plan = plans[selected] ?? null;
+  const blurbs = useMemo(() => describePlans(plans), [plans]);
   const ride = useRide(plan, destination, destination?.label.split(",")[0]);
   /** While riding, keep dock counts fresh so "dock is full" warnings are current. */
   useEffect(() => {
@@ -921,6 +923,7 @@ export function App() {
                   onDiscard={discardCustom}
                   onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })}
                   stations={stations}
+                  blurb={blurbs[p.id]}
                 />
               ))}
             </ul>

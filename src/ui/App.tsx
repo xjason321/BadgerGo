@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BOUNDARY_OSM_ID, MAP_CENTER, SEARCH_VIEWBOX, SYSTEM_ID } from "../config";
 import { KINDS } from "../core/bikeways";
 import { loadBoundary, type Boundary } from "../core/boundary";
-import { fetchStations } from "../core/gbfs";
 import { geocode, reverseGeocode, suggestPlaces } from "../core/geocode";
 import { buildCustomPlan, walkOnlyPlan } from "../core/planner";
 import { useRide } from "./useRide";
@@ -16,6 +15,7 @@ import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { NearestDocks } from "./NearestDocks";
 import { WeatherChip } from "./WeatherChip";
+import { ago, loadStations } from "../core/stationCache";
 import { clearSession, readSession, saveSession, type Session } from "../core/rideSession";
 import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
 import { DockMenu } from "./DockMenu";
@@ -314,18 +314,21 @@ export function App() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t); }, []);
   const canRefresh = !refreshing && loadedAt > 0 && now - loadedAt >= REFRESH_MS;
+  /** Set when there's no signal and the docks shown are the last ones we saw (when they were saved). */
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
+  const loadDocks = async () => { const r = await loadStations(SYSTEM_ID); setCachedAt(r.cachedAt ?? null); return r.stations; };
   /** Re-download the BCycle bike and dock counts. At most once a minute. */
   const refreshStations = async () => {
     if (refreshing || Date.now() - loadedAt < REFRESH_MS) return;
     setRefreshing(true);
     try {
-      setStations(await fetchStations(SYSTEM_ID));
+      setStations(await loadDocks());
       setLoadedAt(Date.now());
     } catch (e) { setStatus(`Couldn't refresh docks: ${(e as Error).message}`); } finally { setRefreshing(false); }
   };
 
   useEffect(() => {
-    fetchStations(SYSTEM_ID)
+    loadDocks()
       .then((s) => {
         setStations(s);
         setLoadedAt(Date.now());
@@ -532,7 +535,7 @@ export function App() {
   useEffect(() => {
     if (!ride.active) return;
     const t = setInterval(() => {
-      fetchStations(SYSTEM_ID).then((s) => { setStations(s); setLoadedAt(Date.now()); }).catch(() => {});
+      loadDocks().then((s) => { setStations(s); setLoadedAt(Date.now()); }).catch(() => {});
     }, REFRESH_MS);
     return () => clearInterval(t);
   }, [ride.active]);
@@ -807,6 +810,7 @@ export function App() {
             </div>
           )}
           {!ride.active && <WeatherChip lat={(origin ?? destination)?.lat ?? 43.0731} lon={(origin ?? destination)?.lon ?? -89.4012} tripMinutes={plans.length ? plans[selected]?.totalMinutes ?? 30 : 30} />}
+          {cachedAt && <p className="status warn" role="status">No signal: bike and dock counts are from {ago(cachedAt)} and may be out of date.</p>}
           {(status || canRefresh || refreshing) && <p className="status">
             {status}
             {(canRefresh || refreshing) && (

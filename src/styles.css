@@ -669,34 +669,34 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 
 
 /* ---------- bike timer ---------- */
-.nav-timer-start { display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 14px; padding: 12px 14px; background: #ffffff1f; color: #fff; font-size: 14.5px; font-weight: 800; cursor: pointer; }
-.nav-timer { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: #ffffff14; }
+.nav-timer-start { display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 14px; padding: 12px 14px; background: var(--soft); color: var(--ink); font-size: 14.5px; font-weight: 800; cursor: pointer; }
+.nav-timer { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--soft); }
 .nav-timer-top { display: flex; align-items: baseline; gap: 10px; }
 .nav-timer-clock { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; }
-.nav-timer-label { flex: 1; font-size: 13px; color: #ffffffb0; }
-.nav-timer-stop { border: 0; border-radius: 999px; padding: 8px 14px; background: #ffffff26; color: #fff; font-size: 13px; font-weight: 800; cursor: pointer; align-self: center; }
-.nav-timer-bar { height: 8px; border-radius: 4px; background: #ffffff1f; overflow: hidden; }
-.nav-timer-bar i { display: block; height: 100%; border-radius: 4px; background: var(--lime); transition: width 1s linear; }
-.nav-timer small { font-size: 12.5px; color: #ffffffcc; }
+.nav-timer-label { flex: 1; font-size: 13px; color: var(--muted); }
+.nav-timer-stop { border: 0; border-radius: 999px; padding: 8px 14px; background: var(--tint); color: var(--ink); font-size: 13px; font-weight: 800; cursor: pointer; align-self: center; }
+.nav-timer-bar { height: 8px; border-radius: 4px; background: var(--soft-2); overflow: hidden; }
+.nav-timer-bar i { display: block; height: 100%; border-radius: 4px; background: var(--ok); transition: width 1s linear; }
+.nav-timer small { font-size: 12.5px; color: var(--ink-2); }
 .nav-timer.warn { background: #f5a6231f; box-shadow: inset 0 0 0 2px #f5a623; }
 .nav-timer.warn .nav-timer-bar i { background: #f5a623; }
 .nav-timer.over { background: #e5484d26; box-shadow: inset 0 0 0 2px #e5484d; animation: timer-pulse 1.4s ease-in-out infinite; }
 .nav-timer.over .nav-timer-bar i { background: #e5484d; }
-.nav-timer.over .nav-timer-clock { color: #ff8a8d; }
+.nav-timer.over .nav-timer-clock { color: var(--bad); }
 @keyframes timer-pulse { 50% { box-shadow: inset 0 0 0 2px #e5484d, 0 0 0 4px #e5484d44; } }
 @media (prefers-reduced-motion: reduce) { .nav-timer.over { animation: none; } .nav-timer-bar i { transition: none; } }
 
 /* ---------- dock now / full-dock warning ---------- */
-.nav-dock-now { justify-self: center; border: 0; background: none; color: #ffffffc0; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 2px 6px; }
+.nav-dock-now { justify-self: center; border: 0; background: none; color: var(--ink-2); font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 2px 6px; }
 .nav-docks { display: grid; gap: 8px; }
-.nav-docks-note { font-size: 13px; color: #ffffffb0; text-align: center; }
+.nav-docks-note { font-size: 13px; color: var(--muted); text-align: center; }
 .nav-full { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: #e5484d26; box-shadow: inset 0 0 0 2px #e5484d; }
 .nav-full b { font-size: 14px; line-height: 1.3; }
-.nav-full > span { font-size: 12.5px; color: #ffffffcc; }
+.nav-full > span { font-size: 12.5px; color: var(--ink-2); }
 .dock-row { display: flex; align-items: stretch; gap: 8px; }
-.dock-row-info { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; border: 0; border-radius: 12px; padding: 10px 12px; background: #ffffff1a; color: #fff; cursor: pointer; }
+.dock-row-info { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; border: 0; border-radius: 12px; padding: 10px 12px; background: var(--soft); color: var(--ink); cursor: pointer; }
 .dock-row-info b { font-size: 14px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dock-row-info span { font-size: 12.5px; color: #ffffffb0; }
+.dock-row-info span { font-size: 12.5px; color: var(--muted); }
 .dock-row-go { display: grid; place-items: center; min-width: 56px; border-radius: 12px; background: var(--lime); color: #0b3b25; font-weight: 800; text-decoration: none; }
 .nav-dock { max-height: 74dvh; overflow-y: auto; scrollbar-width: none; }
 .nav-dock::-webkit-scrollbar { display: none; }
@@ -759,3 +759,20 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .nav-dock .sv { color: var(--lime); margin-top: 2px; }
 .plan .sv { color: var(--g700); }
 [data-theme="dark"] .plan .sv { color: var(--lime); }
+
+/* Ride panel extras, light and dark */
+.nav-dock .sv { color: var(--g700); }
+.nav-full b { color: var(--ink); }
+[data-theme="dark"] .nav-timer-bar { background: #ffffff1f; }
+[data-theme="dark"] .nav-timer-bar i { background: var(--lime); }
+[data-theme="dark"] .nav-timer.over .nav-timer-clock { color: #ff8a8d; }
+[data-theme="dark"] .nav-dock .sv { color: var(--lime); }
+[data-theme="dark"] .nav-timer-start, [data-theme="dark"] .dock-row-info { background: #ffffff1a; }
+[data-theme="dark"] .nav-timer { background: #ffffff14; }
+[data-theme="dark"] .nav-timer-stop { background: #ffffff26; }
+
+/* Start screen: these sit straight on the green panel, in light and dark */
+.near-btn.on { background: var(--lime); color: #062a1a; }
+.near-info { background: #ffffff1a; color: #fff; }
+.near-info span { color: #ffffffb0; opacity: 1; }
+.near-note { color: #ffffffc0; opacity: 1; }

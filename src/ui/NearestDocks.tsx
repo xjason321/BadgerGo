@@ -30,6 +30,7 @@ export function NearestDocks({ stations, onFocusStation, locate = here }: Props)
 
   const find = async (k: Kind) => {
     if (busy) return;
+    if (kind === k) { setKind(null); setRows(null); setErr(""); return; } // tapping the open one closes it
     setKind(k); setErr(""); setRows(null); setBusy(true);
     try {
       const pos = await locate();
@@ -42,8 +43,8 @@ export function NearestDocks({ stations, onFocusStation, locate = here }: Props)
   return (
     <div className="near form-only">
       <div className="near-btns">
-        <button className={`near-btn${kind === "bike" ? " on" : ""}`} onClick={() => find("bike")} disabled={busy || !stations.length}><BikeIcon /> Nearest bike</button>
-        <button className={`near-btn${kind === "dock" ? " on" : ""}`} onClick={() => find("dock")} disabled={busy || !stations.length}><DockIcon /> Nearest open dock</button>
+        <button className={`near-btn${kind === "bike" ? " on" : ""}`} onClick={() => find("bike")} aria-expanded={kind === "bike"} disabled={busy || !stations.length}><BikeIcon /> Nearest bike</button>
+        <button className={`near-btn${kind === "dock" ? " on" : ""}`} onClick={() => find("dock")} aria-expanded={kind === "dock"} disabled={busy || !stations.length}><DockIcon /> Nearest open dock</button>
       </div>
       {busy && <p className="near-note">Finding your location…</p>}
       {err && <p className="near-note">{err}</p>}

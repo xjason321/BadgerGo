@@ -609,7 +609,7 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .panel, .panel .scroll, .panel .plans { scrollbar-width: none; -ms-overflow-style: none; }
 .panel::-webkit-scrollbar, .panel .scroll::-webkit-scrollbar, .panel .plans::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
-.trip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.trip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .trip-head .trip-title { flex: 1; min-width: 0; margin-top: 4px; }
 
 /* Many legs: the dots shrink and the connectors stretch so the row always fits beside the ✕ */
@@ -666,3 +666,4 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
   .install-tip { overflow: visible; margin-left: 8px; margin-top: 8px; padding-left: 20px; }
   .install-badge { display: grid; place-items: center; position: absolute; top: -10px; left: -10px; width: 26px; height: 26px; border-radius: 50%; background: var(--g900); color: var(--lime); box-shadow: 0 2px 8px #0006; }
 }
+

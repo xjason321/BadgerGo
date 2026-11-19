@@ -16,6 +16,7 @@ import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { NearestDocks } from "./NearestDocks";
 import { WeatherChip } from "./WeatherChip";
+import { clearSession, readSession, saveSession, type Session } from "../core/rideSession";
 import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
 import { DockMenu } from "./DockMenu";
 import { PencilIcon } from "./icons";
@@ -548,6 +549,29 @@ export function App() {
   const [legFocus, setLegFocus] = useState(0);
   const startRide = () => { ride.start(); setSnap("peek"); };
 
+  // ---- Resume: a ride in progress survives the page being closed or reloaded (switching apps can do that on a phone) ----
+  const [resume, setResume] = useState<Session | null>(() => readSession());
+  const [resuming, setResuming] = useState<Session | null>(null);
+  const wasRiding = useRef(false);
+  useEffect(() => {
+    if (ride.active && plan && origin && destination) saveSession({ plan, origin, destination, index: ride.index, savedAt: Date.now() });
+    else if (wasRiding.current) clearSession(); // the ride ended: forget it
+    wasRiding.current = ride.active;
+  }, [ride.active, ride.index, plan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const resumeRide = () => {
+    if (!resume) return;
+    setOrigin(resume.origin); setDestination(resume.destination);
+    setText({ origin: resume.origin.label, destination: resume.destination.label });
+    setPlans([resume.plan]); setSelected(0); setDoneSig(sigOf(resume.origin, resume.destination));
+    setResuming(resume); setResume(null);
+  };
+  const dismissResume = () => { clearSession(); setResume(null); };
+  // Wait for the restored plan to be in place before starting, or switching plans would end the ride again.
+  useEffect(() => {
+    if (!resuming || plan?.id !== resuming.plan.id) return;
+    ride.start(); ride.setIndex(resuming.index); setSnap("peek"); setResuming(null);
+  }, [resuming, plan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- Custom route: the rider picks the docks (pencil on a card, or a dock's popup / long-press menu on the map) ----
   const bikePlan = plan && !plan.walkOnly ? plan : null;
   const chainIds = bikePlan ? bikePlan.stations.map((s) => s.id) : null;
@@ -672,6 +696,13 @@ export function App() {
       )}
       {themeBtn("on-desktop")}
       {about && <AboutDialog onClose={() => setAbout(false)} />}
+      {resume && !ride.active && (
+        <div className="resume" role="alertdialog" aria-label="Resume your ride">
+          <div><b>Resume your ride?</b><span>To {resume.destination.label.split(",")[0]}</span></div>
+          <button className="resume-go" onClick={resumeRide}>Resume</button>
+          <button className="resume-x" onClick={dismissResume} aria-label="Dismiss">✕</button>
+        </div>
+      )}
       {fitForm && !ride.active && <InstallTip />}
       <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null || formDrag != null ? " dragging" : ""}${fitForm && formHidden ? " hidden-form" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={fitForm ? ({ transform: `translateY(${formDrag ?? (formHidden ? hiddenY : 0)}px)` } as React.CSSProperties) : levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
         {infoBtn("on-desktop")}

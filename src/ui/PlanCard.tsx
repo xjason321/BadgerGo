@@ -8,6 +8,7 @@ import { STUDENT_PLAN, type Plan, type Station } from "../core/types";
 import { AlertIcon, BikeIcon, CheckIcon, ClockIcon, CloseIcon, DollarIcon, PencilIcon, RouteIcon, SwapIcon, WalkIcon } from "./icons";
 import { ElevationProfile } from "./ElevationProfile";
 import { RoadBar } from "./RoadBar";
+import { StreetViewLinks } from "./StreetViewLinks";
 
 const min = (m: number) => `${Math.max(1, Math.round(m))} min`;
 const miles = (m: number) => (m / 1609.34).toFixed(1);
@@ -93,6 +94,7 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
                 <span className="to">{last ? "to" : "swap at"} {to.name}</span>
                 {!last && <span className="tag"><SwapIcon size={12} /> Swap</span>}
                 <Pill n={to.isReturning ? to.docksAvailable : 0} noun="open dock" />
+                <StreetViewLinks geometry={r.geometry} />
               </div>
             </li>
           );

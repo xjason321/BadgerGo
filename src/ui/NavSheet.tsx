@@ -6,6 +6,7 @@ import { fullReason, fullWarning, nearestOpenDocks, type DockChoice } from "../c
 import { formatDistance } from "../core/ride";
 import { clock, type TimerAlert, type TimerState } from "../core/bikeTimer";
 import type { LatLng, Plan, Station } from "../core/types";
+import { StreetViewLinks } from "./StreetViewLinks";
 import { BikeIcon, CheckIcon, ClockIcon, CloseIcon, VolumeIcon, VolumeOffIcon, WalkIcon } from "./icons";
 
 type App = "google" | "apple";
@@ -93,6 +94,7 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, t
             {leg.part && <span>Part {leg.part.n} of {leg.part.of}: this ride needs {leg.part.of} links to stay on route.</span>}
             {leg.atStop && leg.swap && <span>Dock your bike there, then rent another for the next leg.</span>}
             {leg.atStop && leg.kind === "ride" && !leg.swap && <span>Dock your bike at the end.</span>}
+            <StreetViewLinks geometry={leg.geometry} className="nav-sv" />
           </div>
           {leg.kind === "ride" && leg.atStop && (() => {
             const w = fullWarning(leg.dockId, stations);

@@ -750,3 +750,12 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .nav-cue { position: absolute; top: 10px; right: 50px; width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--tint); color: var(--ink); opacity: .6; cursor: pointer; }
 .nav-cue.on { opacity: 1; background: var(--lime); color: #0b3b25; }
 .nav-dock .nav-steps { margin-right: 80px; } /* room for the cue toggle and the close button */
+
+/* ---------- Street View links ---------- */
+.sv { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
+.sv-label { opacity: .65; font-weight: 600; }
+.sv a { color: inherit; text-decoration: underline; text-underline-offset: 3px; padding: 4px 2px; }
+.sv a + a::before { content: none; }
+.nav-dock .sv { color: var(--lime); margin-top: 2px; }
+.plan .sv { color: var(--g700); }
+[data-theme="dark"] .plan .sv { color: var(--lime); }

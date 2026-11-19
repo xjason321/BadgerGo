@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { levelOf } from "../core/dockStatus";
+import { backupDocks } from "../core/dockNow";
+import { formatDistance } from "../core/ride";
 import { trafficExposure } from "../core/planner";
 import { overageCost } from "../core/pricing";
 import { STUDENT_PLAN, type Plan, type Station } from "../core/types";
@@ -31,10 +33,12 @@ interface Props {
   onDiscard?: () => void;
   /** The rider grabbed a dock tile: show it on the map. */
   onFocusStation?: (s: Station) => void;
+  /** Live docks, used to suggest backups near the pick-up and drop-off. */
+  stations?: Station[];
 }
 
 /** One route suggestion: headline numbers, then the trip step by step. */
-export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation }: Props) {
+export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, stations }: Props) {
   if (p.walkOnly) return <WalkCard plan={p} index={index} selected={selected} onSelect={onSelect} />;
   if (editing) return <EditCard plan={p} onRemoveStop={onRemoveStop} onReorder={onReorder} onDone={onDone} onDiscard={onDiscard} onFocusStation={onFocusStation} />;
   const swaps = p.stations.length - 2;
@@ -43,6 +47,7 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
   const saves = swaps > 0 ? directCost - p.overageCost : 0;
   const exposure = trafficExposure(p, trafficLevel);
   const dist = p.rides.reduce((a, r) => a + r.distanceM, 0);
+  const backups = stations && p.id !== "custom" ? backupDocks(p, stations) : null;
 
   return (
     <li className={`plan${selected ? " sel" : ""}`} onClick={onSelect}>
@@ -102,6 +107,22 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
       </ol>
 
       <ElevationProfile plan={p} />
+
+      {backups && (backups.pickup || backups.dropoff) && (
+        <div className="backups">
+          <b>Backup docks</b>
+          {backups.pickup && (
+            <button onClick={(e) => { e.stopPropagation(); onFocusStation?.(backups.pickup!.station); }}>
+              <span>Pick up</span> {backups.pickup.station.name} <i>{formatDistance(backups.pickup.meters)} away · {backups.pickup.station.bikesAvailable} bike{backups.pickup.station.bikesAvailable === 1 ? "" : "s"}</i>
+            </button>
+          )}
+          {backups.dropoff && (
+            <button onClick={(e) => { e.stopPropagation(); onFocusStation?.(backups.dropoff!.station); }}>
+              <span>Drop off</span> {backups.dropoff.station.name} <i>{formatDistance(backups.dropoff.meters)} away · {backups.dropoff.station.docksAvailable} open dock{backups.dropoff.station.docksAvailable === 1 ? "" : "s"}</i>
+            </button>
+          )}
+        </div>
+      )}
 
       {swaps > 0 && p.id !== "custom" && (
         <div className="note info">

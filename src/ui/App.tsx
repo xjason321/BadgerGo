@@ -845,6 +845,7 @@ export function App() {
                   onDone={() => setEditing(false)}
                   onDiscard={discardCustom}
                   onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })}
+                  stations={stations}
                 />
               ))}
             </ul>

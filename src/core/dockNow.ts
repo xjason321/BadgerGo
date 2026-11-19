@@ -33,3 +33,32 @@ export function fullWarning(dockId: string | undefined, stations: Station[]): Fu
 
 /** Why a dock can't take a bike, in a few words. */
 export const fullReason = (s: Station) => (!s.isReturning ? "isn't taking returns" : "has no free docks");
+
+/** Backups are only offered this close to the planned dock, so they're still on the way. */
+export const BACKUP_RADIUS_M = 500;
+
+export interface Backups { pickup: DockChoice | null; dropoff: DockChoice | null }
+
+/**
+ * The next-best docks for a trip: another station near the pick-up that has a bike, and one near
+ * the drop-off that has a free dock. Docks already used by the plan are never suggested.
+ */
+export function backupDocks(plan: { stations: Station[] }, stations: Station[], radius = BACKUP_RADIUS_M): Backups {
+  const used = new Set(plan.stations.map((s) => s.id));
+  const best = (anchor: Station, ok: (s: Station) => boolean): DockChoice | null => {
+    let out: DockChoice | null = null;
+    for (const s of stations) {
+      if (used.has(s.id) || !ok(s)) continue;
+      const meters = haversine(anchor, s);
+      if (meters <= radius && (!out || meters < out.meters)) out = { station: s, meters };
+    }
+    return out;
+  };
+  const first = plan.stations[0];
+  const last = plan.stations[plan.stations.length - 1];
+  if (!first || !last) return { pickup: null, dropoff: null };
+  return {
+    pickup: best(first, (s) => s.isRenting && s.bikesAvailable > 0),
+    dropoff: best(last, canDock),
+  };
+}

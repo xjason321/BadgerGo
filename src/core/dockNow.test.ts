@@ -60,3 +60,24 @@ describe("links and legs", () => {
     expect(legs.map((l) => l.dockId)).toEqual(["A", "B", undefined]);
   });
 });
+
+import { backupDocks } from "./dockNow";
+describe("backupDocks", () => {
+  const A = st("A", 43.07, -89.4, 3);
+  const B = st("B", 43.08, -89.4, 3);
+  const plan = { stations: [A, B] };
+  const pool = [A, B, st("a2", 43.0715, -89.4, 1), st("a3", 43.0705, -89.4, 1), st("b2", 43.0812, -89.4, 4), st("bfar", 43.09, -89.4, 4)];
+  it("picks the nearest unused dock with a bike near the pick-up, and one with a free dock near the drop-off", () => {
+    const b = backupDocks(plan, pool);
+    expect(b.pickup?.station.id).toBe("a3");
+    expect(b.dropoff?.station.id).toBe("b2");
+  });
+  it("skips docks with nothing to give and docks too far away", () => {
+    const empty = { ...st("e", 43.0701, -89.4, 1), bikesAvailable: 0 };
+    expect(backupDocks(plan, [A, B, empty]).pickup).toBeNull();
+    expect(backupDocks(plan, [A, B, st("bfar", 43.09, -89.4, 4)]).dropoff).toBeNull();
+  });
+  it("never suggests a dock the plan already uses", () => {
+    expect(backupDocks({ stations: [A, B, st("mid", 43.075, -89.4, 2)] }, [A, B, st("mid", 43.075, -89.4, 2)]).pickup).toBeNull();
+  });
+});

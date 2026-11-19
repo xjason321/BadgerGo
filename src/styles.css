@@ -667,3 +667,21 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
   .install-badge { display: grid; place-items: center; position: absolute; top: -10px; left: -10px; width: 26px; height: 26px; border-radius: 50%; background: var(--g900); color: var(--lime); box-shadow: 0 2px 8px #0006; }
 }
 
+
+/* ---------- bike timer ---------- */
+.nav-timer-start { display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 14px; padding: 12px 14px; background: #ffffff1f; color: #fff; font-size: 14.5px; font-weight: 800; cursor: pointer; }
+.nav-timer { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: #ffffff14; }
+.nav-timer-top { display: flex; align-items: baseline; gap: 10px; }
+.nav-timer-clock { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+.nav-timer-label { flex: 1; font-size: 13px; color: #ffffffb0; }
+.nav-timer-stop { border: 0; border-radius: 999px; padding: 8px 14px; background: #ffffff26; color: #fff; font-size: 13px; font-weight: 800; cursor: pointer; align-self: center; }
+.nav-timer-bar { height: 8px; border-radius: 4px; background: #ffffff1f; overflow: hidden; }
+.nav-timer-bar i { display: block; height: 100%; border-radius: 4px; background: var(--lime); transition: width 1s linear; }
+.nav-timer small { font-size: 12.5px; color: #ffffffcc; }
+.nav-timer.warn { background: #f5a6231f; box-shadow: inset 0 0 0 2px #f5a623; }
+.nav-timer.warn .nav-timer-bar i { background: #f5a623; }
+.nav-timer.over { background: #e5484d26; box-shadow: inset 0 0 0 2px #e5484d; animation: timer-pulse 1.4s ease-in-out infinite; }
+.nav-timer.over .nav-timer-bar i { background: #e5484d; }
+.nav-timer.over .nav-timer-clock { color: #ff8a8d; }
+@keyframes timer-pulse { 50% { box-shadow: inset 0 0 0 2px #e5484d, 0 0 0 4px #e5484d44; } }
+@media (prefers-reduced-motion: reduce) { .nav-timer.over { animation: none; } .nav-timer-bar i { transition: none; } }

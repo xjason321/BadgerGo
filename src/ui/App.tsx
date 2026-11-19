@@ -18,6 +18,7 @@ import { DockMenu } from "./DockMenu";
 import { PencilIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
 import { InstallTip } from "./InstallTip";
+import { useBikeTimer } from "./useBikeTimer";
 import { editChain, type DockAction } from "../core/dockActions";
 import { PlanCard } from "./PlanCard";
 import { NavSheet } from "./NavSheet";
@@ -511,6 +512,14 @@ export function App() {
 
   const plan = plans[selected] ?? null;
   const ride = useRide(plan, destination, destination?.label.split(",")[0]);
+  const timer = useBikeTimer();
+  // Reaching the end of a ride leg (a dock) means the bike is docked: stop the timer.
+  const prevLeg = useRef(0);
+  useEffect(() => {
+    const from = ride.legs[prevLeg.current];
+    if (timer.running && ride.index > prevLeg.current && from?.kind === "ride" && from.atStop) timer.stop();
+    prevLeg.current = ride.index;
+  }, [ride.index]); // eslint-disable-line react-hooks/exhaustive-deps
   const [dockH, setDockH] = useState(0); // height of ride mode's bottom panel
   const [legFocus, setLegFocus] = useState(0);
   const startRide = () => { ride.start(); setSnap("peek"); };
@@ -604,8 +613,9 @@ export function App() {
           pos={ride.pos}
           error={ride.error}
           destinationName={destination.label || "your destination"}
-          onStop={ride.stop}
+          onStop={() => { if (ride.done) timer.stop(); ride.stop(); }}
           onHeight={setDockH}
+          timer={timer}
         />
       )}
       {busy && (

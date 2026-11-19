@@ -3,8 +3,9 @@ import { haversine } from "../core/geo";
 import { isIos } from "../core/bcycle";
 import { appleLegUrl, googleLegUrl, type NavLeg } from "../core/navLinks";
 import { formatDistance } from "../core/ride";
+import { clock, type TimerAlert, type TimerState } from "../core/bikeTimer";
 import type { LatLng, Plan } from "../core/types";
-import { BikeIcon, CheckIcon, CloseIcon, WalkIcon } from "./icons";
+import { BikeIcon, CheckIcon, ClockIcon, CloseIcon, WalkIcon } from "./icons";
 
 type App = "google" | "apple";
 const KEY = "badgergo.navApp";
@@ -27,10 +28,12 @@ interface Props {
   onStop: () => void;
   /** Height of this panel, so the map can keep the leg clear of it. */
   onHeight: (h: number) => void;
+  /** The bike timer: running or not, its numbers, the latest alert, and start / stop. */
+  timer: { running: boolean; state: TimerState | null; alert: TimerAlert | null; start: () => void; stop: () => void };
 }
 
 /** Ride mode's bottom panel: the current leg (the map above frames it), arrows between legs, and a hand-off to Google / Apple Maps. */
-export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight }: Props) {
+export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, timer }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const ios = isIos();
   const first: App = saved() ?? "google";
@@ -81,6 +84,11 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight }:
             {leg.atStop && leg.swap && <span>Dock your bike there, then rent another for the next leg.</span>}
             {leg.atStop && leg.kind === "ride" && !leg.swap && <span>Dock your bike at the end.</span>}
           </div>
+          {timer.running && timer.state ? (
+            <BikeTimer s={timer.state} alert={timer.alert} onStop={timer.stop} />
+          ) : leg.kind === "ride" ? (
+            <button className="nav-timer-start" onClick={timer.start}><ClockIcon size={18} /> I've unlocked a bike: start the 30-min timer</button>
+          ) : null}
           <div className="nav-go">
             <button className="nav-arrow" onClick={() => onIndex(index - 1)} disabled={index === 0} aria-label="Previous leg">‹</button>
             <button className="nav-primary" onClick={() => open(apps[0])}>
@@ -95,6 +103,29 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight }:
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+/** The running timer: big clock, a bar, and what it will cost to go over. */
+function BikeTimer({ s, alert, onStop }: { s: TimerState; alert: TimerAlert | null; onStop: () => void }) {
+  const over = s.phase === "over";
+  const mmss = over ? `+${clock(-s.remainingSec)}` : clock(s.remainingSec);
+  return (
+    <div className={`nav-timer ${s.phase}`} role="timer" aria-live={alert ? "assertive" : "off"}>
+      <div className="nav-timer-top">
+        <span className="nav-timer-clock">{mmss}</span>
+        <span className="nav-timer-label">{over ? "over the free time" : "left free"}</span>
+        <button className="nav-timer-stop" onClick={onStop}>Docked</button>
+      </div>
+      <div className="nav-timer-bar" aria-hidden="true"><i style={{ width: `${Math.round(s.fraction * 100)}%` }} /></div>
+      <small>
+        {over
+          ? `$${s.cost} so far. Next $8 in ${clock(s.nextChargeSec)}. Dock now.`
+          : s.phase === "warn"
+            ? `Dock within ${Math.max(1, Math.ceil(s.remainingSec / 60))} min to stay free.`
+            : "Free for the first 30 minutes of each ride."}
+      </small>
     </div>
   );
 }

@@ -373,6 +373,18 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leg, legFocus, mapGen]);
   useEffect(() => { if (!leg) legLayer.current.clearLayers(); }, [leg]);
+  // The bottom panel grew or shrank (the bike timer appearing, say): frame the leg again so it stays clear of it.
+  const lastCover = useRef(coveredBottom);
+  useEffect(() => {
+    const m = map.current;
+    const moved = Math.abs(coveredBottom - lastCover.current) > 8;
+    lastCover.current = coveredBottom;
+    if (!m || !leg || leg.length < 2 || !moved) return;
+    const b = L.latLngBounds(leg);
+    if (meRef.current) b.extend([meRef.current.lat, meRef.current.lon]);
+    m.fitBounds(b, { paddingTopLeft: [28, 70], paddingBottomRight: [28, coveredBottom + 28], maxZoom: 18, animate: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coveredBottom]);
 
   // Ride mode: the rider's blue dot, and keep it in the visible part of the map while following.
   useEffect(() => {

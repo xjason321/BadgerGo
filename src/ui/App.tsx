@@ -512,6 +512,15 @@ export function App() {
 
   const plan = plans[selected] ?? null;
   const ride = useRide(plan, destination, destination?.label.split(",")[0]);
+  /** While riding, keep dock counts fresh so "dock is full" warnings are current. */
+  useEffect(() => {
+    if (!ride.active) return;
+    const t = setInterval(() => {
+      fetchStations(SYSTEM_ID).then((s) => { setStations(s); setLoadedAt(Date.now()); }).catch(() => {});
+    }, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [ride.active]);
+
   const timer = useBikeTimer();
   // Reaching the end of a ride leg (a dock) means the bike is docked: stop the timer.
   const prevLeg = useRef(0);
@@ -616,6 +625,8 @@ export function App() {
           onStop={() => { if (ride.done) timer.stop(); ride.stop(); }}
           onHeight={setDockH}
           timer={timer}
+          stations={stations}
+          onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })}
         />
       )}
       {busy && (

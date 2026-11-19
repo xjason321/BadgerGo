@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { haversine } from "../core/geo";
 import { isIos } from "../core/bcycle";
-import { appleLegUrl, googleLegUrl, type NavLeg } from "../core/navLinks";
+import { appleLegUrl, googleDirectUrl, googleLegUrl, type NavLeg } from "../core/navLinks";
+import { fullReason, fullWarning, nearestOpenDocks, type DockChoice } from "../core/dockNow";
 import { formatDistance } from "../core/ride";
 import { clock, type TimerAlert, type TimerState } from "../core/bikeTimer";
-import type { LatLng, Plan } from "../core/types";
+import type { LatLng, Plan, Station } from "../core/types";
 import { BikeIcon, CheckIcon, ClockIcon, CloseIcon, WalkIcon } from "./icons";
 
 type App = "google" | "apple";
@@ -28,13 +29,18 @@ interface Props {
   onStop: () => void;
   /** Height of this panel, so the map can keep the leg clear of it. */
   onHeight: (h: number) => void;
+  /** Live station data, for "dock now" and full-dock warnings. */
+  stations: Station[];
+  /** Show a station on the map. */
+  onFocusStation: (s: Station) => void;
   /** The bike timer: running or not, its numbers, the latest alert, and start / stop. */
   timer: { running: boolean; state: TimerState | null; alert: TimerAlert | null; start: () => void; stop: () => void };
 }
 
 /** Ride mode's bottom panel: the current leg (the map above frames it), arrows between legs, and a hand-off to Google / Apple Maps. */
-export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, timer }: Props) {
+export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, timer, stations, onFocusStation }: Props) {
   const el = useRef<HTMLDivElement>(null);
+  const [dockList, setDockList] = useState(false);
   const ios = isIos();
   const first: App = saved() ?? "google";
   const done = index >= legs.length;
@@ -84,6 +90,16 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, t
             {leg.atStop && leg.swap && <span>Dock your bike there, then rent another for the next leg.</span>}
             {leg.atStop && leg.kind === "ride" && !leg.swap && <span>Dock your bike at the end.</span>}
           </div>
+          {leg.kind === "ride" && leg.atStop && (() => {
+            const w = fullWarning(leg.dockId, stations);
+            return w ? (
+              <div className="nav-full" role="alert">
+                <b>{w.station.name} {fullReason(w.station)} right now.</b>
+                {w.alternatives.length ? <span>Try one of these instead:</span> : <span>No other open docks nearby.</span>}
+                {w.alternatives.map((d) => <DockRow key={d.station.id} d={d} onFocus={onFocusStation} />)}
+              </div>
+            ) : null;
+          })()}
           {timer.running && timer.state ? (
             <BikeTimer s={timer.state} alert={timer.alert} onStop={timer.stop} />
           ) : leg.kind === "ride" ? (
@@ -96,6 +112,19 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, t
             </button>
             <button className="nav-arrow" onClick={() => onIndex(index + 1)} aria-label={index + 1 >= legs.length ? "Finish trip" : "Next leg"}>›</button>
           </div>
+          {leg.kind === "ride" && (
+            <button className="nav-dock-now" onClick={() => setDockList((v) => !v)} aria-expanded={dockList}>
+              {dockList ? "Hide docks" : "Need to dock now? Find the nearest open dock"}
+            </button>
+          )}
+          {leg.kind === "ride" && dockList && (
+            <div className="nav-docks">
+              {!pos ? <span className="nav-docks-note">Finding your location…</span> : (() => {
+                const near = nearestOpenDocks(pos, stations, { limit: 3 });
+                return near.length ? near.map((d) => <DockRow key={d.station.id} d={d} onFocus={onFocusStation} />) : <span className="nav-docks-note">No open docks found nearby.</span>;
+              })()}
+            </div>
+          )}
           {apps.slice(1).map((a) => (
             <button key={a} className="nav-secondary" onClick={() => open(a)}>
               {leg.kind === "ride" ? <BikeIcon size={18} /> : <WalkIcon size={18} />} Open in {label(a)}
@@ -126,6 +155,20 @@ function BikeTimer({ s, alert, onStop }: { s: TimerState; alert: TimerAlert | nu
             ? `Dock within ${Math.max(1, Math.ceil(s.remainingSec / 60))} min to stay free.`
             : "Free for the first 30 minutes of each ride."}
       </small>
+    </div>
+  );
+}
+
+/** One open dock: tap the name to see it on the map, Go for bike directions. */
+function DockRow({ d, onFocus }: { d: DockChoice; onFocus: (s: Station) => void }) {
+  const s = d.station;
+  return (
+    <div className="dock-row">
+      <button className="dock-row-info" onClick={() => onFocus(s)}>
+        <b>{s.name}</b>
+        <span>{formatDistance(d.meters)} · {s.docksAvailable} open dock{s.docksAvailable === 1 ? "" : "s"}</span>
+      </button>
+      <a className="dock-row-go" href={googleDirectUrl(s)}>Go</a>
     </div>
   );
 }

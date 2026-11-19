@@ -21,6 +21,8 @@ export interface NavLeg {
   part?: { n: number; of: number };
   swap?: boolean;
   final?: boolean;
+  /** The id of the dock this leg ends at (when `atStop` and it isn't the destination), for live availability. */
+  dockId?: string;
 }
 
 export { ARRIVE_M };
@@ -117,7 +119,7 @@ function rideLegs(plan: Plan, j: number, maxVia: number): NavLeg[] {
   const dock = plan.stations[j + 1];
   const g = r.geometry;
   const swap = j < plan.rides.length - 1;
-  const whole: NavLeg = { kind: "ride", to: dock, toName: dock.name, atStop: true, minutes: r.durationMin, meters: r.distanceM, geometry: g, via: [], swap };
+  const whole: NavLeg = { kind: "ride", to: dock, toName: dock.name, atStop: true, minutes: r.durationMin, meters: r.distanceM, geometry: g, via: [], swap, dockId: dock.id };
   if (g.length < 2) return [whole];
   const cum = cumulative(g);
   const end = cum[cum.length - 1];
@@ -143,7 +145,7 @@ function rideLegs(plan: Plan, j: number, maxVia: number): NavLeg[] {
       geometry,
       via: slice.slice(0, -1).map((a) => pointAt(g, cum, a)),
       ...(parts > 1 ? { part: { n: n + 1, of: parts } } : {}),
-      ...(lastPart ? { swap } : {}),
+      ...(lastPart ? { swap, dockId: dock.id } : {}),
     });
     from = to;
   }
@@ -160,7 +162,7 @@ export function navLegs(plan: Plan, destination: LatLng, destinationName = "your
     return legs;
   }
   if (plan.walkToDock.geometry.length)
-    legs.push({ kind: "walk", to: st[0], toName: st[0].name, atStop: true, minutes: plan.walkToDock.durationMin, meters: plan.walkToDock.distanceM, geometry: plan.walkToDock.geometry, via: [] });
+    legs.push({ kind: "walk", to: st[0], toName: st[0].name, atStop: true, minutes: plan.walkToDock.durationMin, meters: plan.walkToDock.distanceM, geometry: plan.walkToDock.geometry, via: [], dockId: st[0].id });
   plan.rides.forEach((_, j) => legs.push(...rideLegs(plan, j, maxVia)));
   if (plan.walkFromDock.geometry.length)
     legs.push({ kind: "walk", to: destination, toName: destinationName, atStop: true, minutes: plan.walkFromDock.durationMin, meters: plan.walkFromDock.distanceM, geometry: plan.walkFromDock.geometry, via: [], final: true });
@@ -180,6 +182,11 @@ export function googleLegUrl(leg: NavLeg, via: LatLng[] = leg.via): string {
   ];
   if (via.length) q.push(`waypoints=${via.map((p) => encodeURIComponent(ll(p))).join("%7C")}`);
   return `https://www.google.com/maps/dir/?${q.join("&")}`;
+}
+
+/** Directions from where the rider is to a point, by bike or on foot (for "dock now"). */
+export function googleDirectUrl(to: LatLng, mode: "bicycling" | "walking" = "bicycling"): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(ll(to))}&travelmode=${mode}&dir_action=navigate`;
 }
 
 /** Apple Maps (iOS 18.4 and later): cycling or walking directions with repeated waypoint parameters. */

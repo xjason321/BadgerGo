@@ -711,8 +711,8 @@ export function App() {
       )}
       {themeBtn("on-desktop")}
       {about && <AboutDialog onClose={() => setAbout(false)} />}
-      {/* On a phone's routes screen the weather sits in the map's top-left corner (the panel is a moving sheet, so it can't live inside it). */}
-      {plans.length > 0 && !ride.active && <WeatherChip className="wx-map" lat={(origin ?? destination)?.lat ?? 43.0731} lon={(origin ?? destination)?.lon ?? -89.4012} tripMinutes={plans[selected]?.totalMinutes ?? 30} />}
+      {/* The weather sits in the map's top-left corner on every screen (the panel is a moving sheet, so it can't live inside it). */}
+      {!ride.active && <WeatherChip className="wx-map" lat={(origin ?? destination)?.lat ?? 43.0731} lon={(origin ?? destination)?.lon ?? -89.4012} tripMinutes={plans.length ? plans[selected]?.totalMinutes ?? 30 : 30} />}
       {resume && !ride.active && (
         <div className="resume" role="alertdialog" aria-label="Resume your ride">
           <div><b>Resume your ride?</b><span>To {resume.destination.label.split(",")[0]}</span></div>
@@ -823,7 +823,6 @@ export function App() {
               </button>
             </div>
           )}
-          {!ride.active && <WeatherChip className="wx-in" lat={(origin ?? destination)?.lat ?? 43.0731} lon={(origin ?? destination)?.lon ?? -89.4012} tripMinutes={plans.length ? plans[selected]?.totalMinutes ?? 30 : 30} />}
           {cachedAt && <p className="status warn" role="status">No signal: bike and dock counts are from {ago(cachedAt)} and may be out of date.</p>}
           {(status || canRefresh || refreshing) && <p className="status">
             {status}

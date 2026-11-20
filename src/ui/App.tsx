@@ -28,6 +28,7 @@ import { DockMenu } from "./DockMenu";
 import { PencilIcon, ShareIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
 import { useBikeTimer } from "./useBikeTimer";
+import { countUse, useUsageCounts } from "./usage";
 import { editChain, type DockAction } from "../core/dockActions";
 import { PlanCard } from "./PlanCard";
 import { NavSheet } from "./NavSheet";
@@ -537,6 +538,7 @@ export function App() {
         ? bikeRanked.map((p, i) => ({ ...p, label: `Option ${i + 2} · ${p.label.split(" · ")[1] ?? ""}` }))
         : bikeRanked;
       const ranked = !walkPlan ? bikeRanked : walkFirst ? [walkPlan, ...bikes] : [...bikes, walkPlan];
+      countUse("route_search");
       setPlans(ranked); setSelected(0); setDoneSig(sigOf(origin, destination)); setBackup(provider.fellBack ? provider.reason || "unavailable" : "");
       if (isPhone()) setSnap("half");
       const ok = bikeRanked.filter((x) => x.withinLimit).length;
@@ -562,6 +564,7 @@ export function App() {
   const openShared = async (r: SharedRoute) => {
     const provider = new FallbackProvider(new ValhallaProvider(r.prefs), new OsrmProvider());
     const stale = newSearch();
+    countUse("shared_open");
     setOrigin(r.origin); setDestination(r.destination);
     setText({ origin: r.origin.label, destination: r.destination.label });
     setPrefs(r.prefs); setSwapsOn(r.swapsOn); setMaxRide(r.maxRide);
@@ -600,6 +603,7 @@ export function App() {
   }, [shared, stations]);
   const shareRoute = async () => {
     if (!plan || !origin || !destination) return;
+    countUse("share");
     const link = shareUrl(window.location.origin + window.location.pathname, shareFromPlan(plan, { origin, destination, swapsOn, maxRide, prefs }));
     const title = `Bike route to ${destination.label.split(",")[0]}`;
     try {
@@ -624,6 +628,7 @@ export function App() {
   }, [ride.active]);
 
   const timer = useBikeTimer();
+  useUsageCounts();
   const [cues, setCues] = useState(() => readCues());
   useRideCues(cues, ride.active, ride.legs, ride.index);
   // Reaching the end of a ride leg (a dock) means the bike is docked: stop the timer.
@@ -636,6 +641,7 @@ export function App() {
   const [dockH, setDockH] = useState(0); // height of ride mode's bottom panel
   const [legFocus, setLegFocus] = useState(0);
   const startRide = () => {
+    countUse("ride_start");
     ride.start(); setSnap("peek");
     // Already on a bike: its clock is running, so start the timer with the minutes you've already used.
     if (plan && startsOnBike(plan) && plan.startMinutesLeft != null) timer.start(STUDENT_PLAN.freeMinutes - plan.startMinutesLeft);
@@ -689,6 +695,7 @@ export function App() {
     }
   };
   const startEdit = (p: Plan) => {
+    countUse("edit_route");
     const swaps = p.stations.length - 2;
     const kind = swaps === 0 ? "Direct" : swaps === 1 ? "1 swap" : `${swaps} swaps`;
     const cp: Plan = p.id === "custom" ? p : { ...p, id: "custom", label: `Custom route · ${kind}`, directRideMinutes: null, detourMinutes: 0 };

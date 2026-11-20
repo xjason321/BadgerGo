@@ -1,0 +1,16 @@
+// BadgerGo's usage-counting Worker (worker/). The site itself is a static site served as before; this Worker only
+// answers badgergo.app/api/* (anonymous usage counts in, dashboard numbers out). Deploy with `npm run deploy:stats`
+// after `npx wrangler login`. The zone must be on the Cloudflare account you log in with.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "badgergo-stats",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "routes": [{ "pattern": "badgergo.app/api/*", "zone_name": "badgergo.app" }],
+  // One Usage instance keeps the anonymous daily counts behind the dashboard (/analytics).
+  "durable_objects": { "bindings": [{ "name": "USAGE", "class_name": "Usage" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Usage"] }],
+  // Per-client-IP limit. Generous: a campus network can put many riders behind one IP.
+  "ratelimits": [{ "name": "USAGE_LIMITER", "namespace_id": "1005", "simple": { "limit": 300, "period": 60 } }],
+  "observability": { "enabled": true }
+}

@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 import { loadEnv, type Plugin } from "vite";
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 
 /**
@@ -45,8 +47,19 @@ function csp(valhallaUrl: string | undefined): Plugin {
 // your Valhalla box pretending to be http://localhost:5173 (the origin it allows). That way a tunnel URL works on a phone.
 const valhalla = process.env.VALHALLA_TARGET || "https://routes.badgergo.app";
 
+/** The usage dashboard is a second page (analytics.html), served at /analytics. The built site gets this from its host; the dev and preview servers need it spelled out. */
+function analyticsRoute(): Plugin {
+  const rewrite = (req: { url?: string }) => { if (req.url && /^\/analytics(\?|$)/.test(req.url)) req.url = req.url.replace("/analytics", "/analytics.html"); };
+  return {
+    name: "badgergo-analytics-route",
+    configureServer: (s) => { s.middlewares.use((req, _res, next) => { rewrite(req); next(); }); },
+    configurePreviewServer: (s) => { s.middlewares.use((req, _res, next) => { rewrite(req); next(); }); },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), csp(loadEnv(mode, process.cwd(), "VITE_").VITE_VALHALLA_URL)],
+  plugins: [react(), analyticsRoute(), csp(loadEnv(mode, process.cwd(), "VITE_").VITE_VALHALLA_URL)],
+  build: { rollupOptions: { input: { main: resolve(process.cwd(), "index.html"), analytics: resolve(process.cwd(), "analytics.html") } } },
   server: {
     allowedHosts: [".trycloudflare.com", ".ngrok-free.app", ".ngrok.app"],
     proxy: {
@@ -58,5 +71,5 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  test: { environment: "node" },
+  test: { environment: "node", alias: { "cloudflare:workers": fileURLToPath(new URL("./worker/test/cloudflareWorkersStub.ts", import.meta.url)) } },
 }));

@@ -15,3 +15,18 @@
 - City limits (`BOUNDARY_OSM_ID` in `src/config.ts`) come from OpenStreetMap on first load and are cached in the browser. Outside them is dimmed 40%.
 - Logo: `public/badgergo-logo.png`. The Inter font loads from Google Fonts (see `index.html`).
 - A copy of the project from before this redesign is in `backups/2026-11-17-before-badgergo/`.
+
+## Analytics dashboard
+
+Anonymous usage counts, shown at `https://badgergo.app/analytics` (anyone with the link can open it; it is marked `noindex`).
+
+- **What is counted:** per day, how many devices opened the app (unique over 1/7/30/90 days), new devices, devices open by hour, device kind, browser vs Home Screen app, and counts of a few features (routes planned, rides started, shares, edits, timer, alerts, nearest bike/dock). No identifiers, places, or routes are sent. Browsers with Do Not Track / Global Privacy Control on, automated browsers and bots are not counted.
+- **How:** a separate Cloudflare Worker (`worker/`, config in `wrangler.jsonc`) on the route `badgergo.app/api/*` keeps the counts in a SQLite Durable Object. The site itself stays static. The page and the reporting code live in `src/analytics/` and `src/ui/usage.ts`.
+- **Deploy the counter once** (the zone `badgergo.app` must be on your Cloudflare account):
+  ```
+  npm install
+  npx wrangler login
+  npm run deploy:stats
+  ```
+  Then deploy the site as usual. Numbers start from the first visit after both are live.
+- `npm run build` type-checks the app and the worker; `npm test` covers both.

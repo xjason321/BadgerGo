@@ -3,6 +3,7 @@ import { crossed, readTimer, timerState, writeTimer, type TimerAlert, type Timer
 import { alertNote, liveKey, liveNote, ALERT_TAG, LIVE_TAG } from "../core/timerNotify";
 import { beep, primeAudio, speak, vibrate } from "./feedback";
 import { askNotifyPermission, closeNote, notifyState, showNote, type NotifyState } from "./notify";
+import { countUse } from "./usage";
 
 const SAY: Record<TimerAlert, string> = {
   early: "Ten minutes left on your free ride.",
@@ -55,20 +56,27 @@ export function useBikeTimer() {
     if (note) void showNote(note, { silent: document.visibilityState === "visible" });
   }, [state?.elapsedSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Ask for notification permission (from a tap); counts when alerts get turned on. */
+  const askNotify = useCallback(() => {
+    const before = notifyState();
+    void askNotifyPermission().then((s) => { setNotify(s); if (before !== "on" && s === "on") countUse("alerts_on"); });
+  }, []);
+
   /** `usedMin`: minutes of the free window already gone (the rider unlocked this bike earlier). */
   const start = useCallback((usedMin = 0) => {
     primeAudio(); // this runs from the rider's tap, which is what lets the beeps play later
-    void askNotifyPermission().then(setNotify); // ...and what lets the browser ask about notifications
+    countUse("timer_start");
+    askNotify(); // ...and what lets the browser ask about notifications
     const now0 = Date.now();
     const t = now0 - Math.max(0, usedMin) * 60_000;
     lastSec.current = Math.floor((now0 - t) / 1000);
     setAlert(null); setNow(now0); setStartedAt(t); writeTimer(t);
-  }, []);
+  }, [askNotify]);
   const stop = useCallback(() => {
     setStartedAt(null); setAlert(null); writeTimer(null);
     void closeNote(LIVE_TAG); void closeNote(ALERT_TAG);
   }, []);
-  const enableNotify = useCallback(() => { void askNotifyPermission().then(setNotify); }, []);
+  const enableNotify = askNotify;
 
   // While the app is in the background, one notification that keeps itself current: minutes left, updated every minute.
   // (Web apps can't draw a ticking clock in a notification, and the browser only wakes a hidden page about once a minute anyway.)

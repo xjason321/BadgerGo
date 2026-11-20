@@ -1,0 +1,10 @@
+{
+  // The Worker and the pure modules it imports: no DOM, Workers types instead (the app's tsconfig covers src/).
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "lib": ["ES2022"], "strict": true, "skipLibCheck": true, "noEmit": true,
+    "isolatedModules": true, "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["worker/index.ts", "worker/app.ts", "worker/usage.ts", "worker/usageCore.ts", "worker/validate.ts", "src/core/usage*.ts"],
+  "exclude": ["**/*.test.ts"]
+}

@@ -63,6 +63,8 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  // The usage dashboard and its live numbers are never kept: an old copy of the numbers is wrong, and the dashboard page must not replace the saved app page.
+  if (url.origin === location.origin && (url.pathname.startsWith("/api/") || url.pathname === "/analytics" || url.pathname === "/analytics.html")) return;
   if (req.mode === "navigate" && url.origin === location.origin) return e.respondWith(page(req));
   if (url.hostname === "tile.openstreetmap.org") return e.respondWith(tile(req));
   if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com") return e.respondWith(staleWhileRevalidate(req, APP));

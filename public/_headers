@@ -7,6 +7,12 @@
   Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=(), interest-cohort=()
   Cross-Origin-Opener-Policy: same-origin
 
+# The usage dashboard: not for search engines.
+/analytics
+  X-Robots-Tag: noindex, nofollow
+/analytics.html
+  X-Robots-Tag: noindex, nofollow
+
 # The service worker must be re-checked on every visit so fixes reach phones quickly.
 /sw.js
   Cache-Control: no-cache

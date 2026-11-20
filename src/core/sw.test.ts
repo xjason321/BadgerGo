@@ -47,6 +47,16 @@ describe("service worker", () => {
     expect(await w.run("https://badgergo.app/x", { method: "POST" })).toBeNull();
     for (const u of ["https://gbfs.bcycle.com/bcycle_madison/station_status.json", "https://api.open-meteo.com/v1/forecast", "https://nominatim.openstreetmap.org/search", "https://routes.badgergo.app/route", "https://badgergo.app/valhalla/route"]) expect(await w.run(u)).toBeNull();
   });
+  it("never keeps the usage dashboard or its numbers", async () => {
+    const w = worker();
+    expect(await w.run("https://badgergo.app/analytics", { mode: "navigate" })).toBeNull();
+    expect(await w.run("https://badgergo.app/analytics.html", { mode: "navigate" })).toBeNull();
+    expect(await w.run("https://badgergo.app/api/analytics?days=180")).toBeNull();
+    // ...and visiting the dashboard doesn't replace the saved copy of the app that opens offline
+    await w.run("https://badgergo.app/", { mode: "navigate" });
+    w.net.up = false;
+    expect(await text(await w.run("https://badgergo.app/", { mode: "navigate" }))).toBe("net:https://badgergo.app/");
+  });
   it("keeps map tiles and serves them with no signal", async () => {
     const w = worker();
     const u = "https://tile.openstreetmap.org/15/8000/11000.png";

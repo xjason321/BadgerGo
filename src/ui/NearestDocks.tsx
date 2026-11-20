@@ -4,6 +4,7 @@ import { googleDirectUrl } from "../core/navLinks";
 import { formatDistance } from "../core/ride";
 import type { LatLng, Station } from "../core/types";
 import { BikeIcon, DockIcon } from "./icons";
+import { countUse } from "./usage";
 
 type Kind = "bike" | "dock";
 
@@ -32,6 +33,7 @@ export function NearestDocks({ stations, onFocusStation, locate = here }: Props)
     if (busy) return;
     if (kind === k) { setKind(null); setRows(null); setErr(""); return; } // tapping the open one closes it
     setKind(k); setErr(""); setRows(null); setBusy(true);
+    countUse(k === "bike" ? "nearest_bike" : "nearest_dock");
     try {
       const pos = await locate();
       const found = k === "bike" ? nearestBikes(pos, stations) : nearestOpenDocks(pos, stations);

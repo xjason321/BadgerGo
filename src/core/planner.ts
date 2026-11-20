@@ -26,6 +26,8 @@ export interface PlanOptions {
   verifySwaps?: number;
   /** The rider already has a bike: the first ride starts at the origin, with no pick-up dock or walk to one. */
   startWithBike?: boolean;
+  /** With startWithBike: free minutes left on the rider's current bike (default: all of them). */
+  startMinutesLeft?: number;
   /** Pick-up and drop-off docks further than this walk away are skipped (unless none are closer). */
   maxWalkMinutes?: number;
   /** How many plans to return. */
@@ -196,6 +198,10 @@ export async function planRoutes(
   const pricing = opts.pricing ?? STUDENT_PLAN;
   const factor = opts.rideTimeFactor ?? 1;
   const limit = opts.maxRideMinutes;
+  // Already on a bike: its first ride only has the free minutes the rider has left; later bikes are fresh.
+  const firstLeft = opts.startWithBike ? Math.max(0, Math.min(opts.startMinutesLeft ?? pricing.freeMinutes, pricing.freeMinutes)) : null;
+  const limitFor = (isFirst: boolean) => (isFirst && firstLeft != null ? Math.min(limit, firstLeft) : limit);
+  const costFor = (m: number, isFirst: boolean) => overageCost(m, isFirst && firstLeft != null ? { ...pricing, freeMinutes: firstLeft } : pricing);
   const fanout = opts.swapCandidates ?? 6;
   const budget = opts.maxExpansions ?? 40;
 
@@ -265,9 +271,9 @@ export async function planRoutes(
       for (const [id, t] of times) {
         const to = byId.get(id)!;
         if (cur.path.some((p) => p.id === id)) continue;
-        const fits = t <= limit;
-        const isEnd = endIds.has(id);
         const first = cur.path.length === 1;
+        const fits = t <= limitFor(first);
+        const isEnd = endIds.has(id);
         if (isEnd) {
           if (first) directTimes.set(`${start.id}>${id}`, t);
           if (fits || first) {
@@ -278,8 +284,8 @@ export async function planRoutes(
             const chain: Chain = {
               path,
               legs,
-              cost: legs.reduce((c, l) => c + overageCost(l, pricing), 0),
-              withinLimit: legs.every((l) => l <= limit),
+              cost: legs.reduce((c, l, i) => c + costFor(l, i === 0), 0),
+              withinLimit: legs.every((l, i) => l <= limitFor(i === 0)),
               score: walkIn + total + walkEstimate(to, destination),
             };
             if (first) directs.push(chain);
@@ -492,8 +498,9 @@ export async function planRoutes(
         rideMinutes,
         longestRideMinutes: Math.max(...mins),
         swapMinutes: swapsUsed * swapMin,
-        overageCost: mins.reduce((a, m) => a + overageCost(m, pricing), 0),
-        withinLimit: mins.every((m) => m <= limit),
+        overageCost: mins.reduce((a, m, i) => a + costFor(m, i === 0), 0),
+        withinLimit: mins.every((m, i) => m <= limitFor(i === 0)),
+        ...(firstLeft != null ? { startMinutesLeft: firstLeft } : {}),
         totalMinutes: walkTo.durationMin + rideMinutes + swapsUsed * swapMin + walkFrom.durationMin,
         directRideMinutes: directMin,
         detourMinutes: directMin == null ? 0 : Math.max(0, rideMinutes + swapsUsed * swapMin - directMin),
@@ -520,7 +527,7 @@ export async function buildCustomPlan(
   destination: LatLng,
   chain: Station[],
   provider: RoutingProvider,
-  opts: Pick<PlanOptions, "maxRideMinutes" | "pricing" | "swapMinutes" | "refineRide">,
+  opts: Pick<PlanOptions, "maxRideMinutes" | "pricing" | "swapMinutes" | "refineRide" | "startMinutesLeft">,
 ): Promise<Plan> {
   if (chain.length < 2) throw new Error("A route needs a pick-up and a drop-off dock.");
   const pricing = opts.pricing ?? STUDENT_PLAN;
@@ -530,6 +537,7 @@ export async function buildCustomPlan(
     return r[0];
   };
   const start = chain[0];
+  const left = isMyBike(start) ? Math.max(0, Math.min(opts.startMinutesLeft ?? pricing.freeMinutes, pricing.freeMinutes)) : null;
   const last = chain[chain.length - 1];
   const [walkTo, walkFrom, ...rides] = await Promise.all([
     isMyBike(start) ? Promise.resolve(NO_WALK) : provider.route("walk", origin, start, false).then((r) => first(r, "walking")),
@@ -554,8 +562,9 @@ export async function buildCustomPlan(
     rideMinutes,
     longestRideMinutes: Math.max(...mins),
     swapMinutes: swapsUsed * swapMin,
-    overageCost: mins.reduce((a, m) => a + overageCost(m, pricing), 0),
-    withinLimit: mins.every((m) => m <= opts.maxRideMinutes),
+    overageCost: mins.reduce((a, m, i) => a + overageCost(m, i === 0 && left != null ? { ...pricing, freeMinutes: left } : pricing), 0),
+    withinLimit: mins.every((m, i) => m <= (i === 0 && left != null ? Math.min(opts.maxRideMinutes, left) : opts.maxRideMinutes)),
+    ...(left != null ? { startMinutesLeft: left } : {}),
     totalMinutes: walkTo.durationMin + rideMinutes + swapsUsed * swapMin + walkFrom.durationMin,
     directRideMinutes: null,
     detourMinutes: 0,

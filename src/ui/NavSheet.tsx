@@ -38,7 +38,7 @@ interface Props {
   /** Show a station on the map. */
   onFocusStation: (s: Station) => void;
   /** The bike timer: running or not, its numbers, the latest alert, and start / stop. */
-  timer: { running: boolean; state: TimerState | null; alert: TimerAlert | null; start: () => void; stop: () => void };
+  timer: { running: boolean; state: TimerState | null; alert: TimerAlert | null; start: (usedMin?: number) => void; stop: () => void };
 }
 
 /** Ride mode's bottom panel: the current leg (the map above frames it), arrows between legs, and a hand-off to Google / Apple Maps. */
@@ -109,7 +109,7 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, t
           {timer.running && timer.state ? (
             <BikeTimer s={timer.state} alert={timer.alert} onStop={timer.stop} />
           ) : leg.kind === "ride" ? (
-            <button className="nav-timer-start" onClick={timer.start}><ClockIcon size={18} /> I've unlocked a bike: start the 30-min timer</button>
+            <button className="nav-timer-start" onClick={() => timer.start()}><ClockIcon size={18} /> I've unlocked a bike: start the 30-min timer</button>
           ) : null}
           <div className="nav-go">
             <button className="nav-arrow" onClick={() => onIndex(index - 1)} disabled={index === 0} aria-label="Previous leg">‹</button>

@@ -69,3 +69,13 @@ describe("persisted start", () => {
     expect(readTimer(T0, st)).toBeNull();
   });
 });
+
+describe("timer started part-way through the free window", () => {
+  it("counts the minutes already used", () => {
+    const now = 1_000_000_000;
+    const st = timerState(now - 10 * 60_000, now);
+    expect(Math.round(st.remainingSec / 60)).toBe(20);
+    expect(st.phase).toBe("free");
+    expect(timerState(now - 26 * 60_000, now).phase).toBe("warn");
+  });
+});

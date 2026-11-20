@@ -80,4 +80,40 @@ describe("starting with a bike", () => {
     const [plan] = await planRoutes(origin, dest, stations, fake, { maxRideMinutes: 30, startWithBike: true });
     expect(backupDocks(plan, [...stations, st("near", 43.0001, -89.0)]).pickup).toBeNull();
   });
+
+  describe("minutes left on the bike", () => {
+    const opts = { maxRideMinutes: 30, maxSwaps: 0, startWithBike: true };
+    it("is free when the first ride fits in the minutes left", async () => {
+      const [p] = await planRoutes(origin, dest, stations, fake, { ...opts, startMinutesLeft: 30 });
+      expect(p.rides[0].durationMin).toBeGreaterThan(20);
+      expect(p.overageCost).toBe(0);
+      expect(p.withinLimit).toBe(true);
+      expect(p.startMinutesLeft).toBe(30);
+    });
+    it("charges when the first ride runs past the minutes left", async () => {
+      const [p] = await planRoutes(origin, dest, stations, fake, { ...opts, startMinutesLeft: 10 });
+      expect(p.overageCost).toBe(8);
+      expect(p.withinLimit).toBe(false);
+      expect(p.startMinutesLeft).toBe(10);
+    });
+    it("gives a fresh 30 minutes after a swap", async () => {
+      const far = { lat: 43.1, lon: -89.0 }; // ~46 min straight, so it needs a swap
+      const mid = [st("m1", 43.05, -89.0), st("m2", 43.0501, -89.0), st("f1", 43.0999, -89.0)];
+      const plans = await planRoutes(origin, far, mid, fake, { maxRideMinutes: 30, startWithBike: true, startMinutesLeft: 25 });
+      const swapped = plans.find((p) => p.stations.length > 2);
+      expect(swapped).toBeTruthy();
+      expect(swapped!.rides[0].durationMin).toBeLessThanOrEqual(25);
+    });
+    it("defaults to all the free minutes and doesn't change normal plans", async () => {
+      const [p] = await planRoutes(origin, dest, stations, fake, { ...opts });
+      expect(p.startMinutesLeft).toBe(30);
+      const [n] = await planRoutes(origin, dest, stations, fake, { maxRideMinutes: 30 });
+      expect(n.startMinutesLeft).toBeUndefined();
+    });
+    it("custom plans honor it too", async () => {
+      const chain = [myBikeStation(origin), stations[2]];
+      const p = await buildCustomPlan(origin, dest, chain, fake, { maxRideMinutes: 30, startMinutesLeft: 10 });
+      expect(p.overageCost).toBe(8);
+    });
+  });
 });

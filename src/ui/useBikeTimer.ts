@@ -40,11 +40,13 @@ export function useBikeTimer() {
     speak(SAY[a]);
   }, [state?.elapsedSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const start = useCallback(() => {
+  /** `usedMin`: minutes of the free window already gone (the rider unlocked this bike earlier). */
+  const start = useCallback((usedMin = 0) => {
     primeAudio(); // this runs from the rider's tap, which is what lets the beeps play later
-    const t = Date.now();
-    lastSec.current = 0;
-    setAlert(null); setNow(t); setStartedAt(t); writeTimer(t);
+    const now0 = Date.now();
+    const t = now0 - Math.max(0, usedMin) * 60_000;
+    lastSec.current = Math.floor((now0 - t) / 1000);
+    setAlert(null); setNow(now0); setStartedAt(t); writeTimer(t);
   }, []);
   const stop = useCallback(() => { setStartedAt(null); setAlert(null); writeTimer(null); }, []);
 

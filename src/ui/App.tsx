@@ -57,6 +57,9 @@ export function App() {
   const [swapsOn, setSwapsOn] = useState(true);
   /** Already on a BCycle: the first ride starts where you are, with no pick-up dock. */
   const [haveBike, setHaveBike] = useState(false);
+  // Minutes still free on the bike you're on (typed as text so the box can be cleared while editing).
+  const [leftText, setLeftText] = useState("20");
+  const minutesLeft = leftText.trim() !== "" && Number.isFinite(Number(leftText)) ? Math.max(0, Math.min(STUDENT_PLAN.freeMinutes, Math.round(Number(leftText)))) : 20;
   const [prefs, setPrefs] = useState<RoadPrefs>(DEFAULT_PREFS);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState(0);
@@ -161,7 +164,7 @@ export function App() {
 
   // What the current routes were computed from: Find routes stays off until one of these changes.
   const sigOf = (o: Place | null, d: Place | null) =>
-    JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, haveBike, prefs]);
+    JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, haveBike, haveBike ? minutesLeft : 0, prefs]);
   const [doneSig, setDoneSig] = useState("");
   useEffect(() => { if (strip.current) strip.current.scrollLeft = 0; }, [plans]);
   const goBack = () => { setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
@@ -502,6 +505,7 @@ export function App() {
           maxRideMinutes: limit,
           maxSwaps: swapsOn ? Infinity : 0,
           startWithBike: haveBike,
+          startMinutesLeft: minutesLeft,
           refineRide: prefs.strict && prefs.traffic < KINDS.length - 1 ? strictRefiner(provider, prefs.traffic) : undefined,
         });
       } catch (e) { planError = e as Error; }
@@ -561,7 +565,11 @@ export function App() {
   }, [ride.index]); // eslint-disable-line react-hooks/exhaustive-deps
   const [dockH, setDockH] = useState(0); // height of ride mode's bottom panel
   const [legFocus, setLegFocus] = useState(0);
-  const startRide = () => { ride.start(); setSnap("peek"); };
+  const startRide = () => {
+    ride.start(); setSnap("peek");
+    // Already on a bike: its clock is running, so start the timer with the minutes you've already used.
+    if (plan && startsOnBike(plan) && plan.startMinutesLeft != null) timer.start(STUDENT_PLAN.freeMinutes - plan.startMinutesLeft);
+  };
 
   // ---- Resume: a ride in progress survives the page being closed or reloaded (switching apps can do that on a phone) ----
   const [resume, setResume] = useState<Session | null>(() => readSession());
@@ -595,7 +603,7 @@ export function App() {
     setStatus("Updating your route…");
     try {
       const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
-      let np = await buildCustomPlan(origin, destination, chain, provider, { maxRideMinutes: swapsOn ? maxRide : STUDENT_PLAN.freeMinutes });
+      let np = await buildCustomPlan(origin, destination, chain, provider, { maxRideMinutes: swapsOn ? maxRide : STUDENT_PLAN.freeMinutes, startMinutesLeft: minutesLeft });
       try { np = { ...np, roads: await analyzePlan(np) }; } catch { /* road types are a bonus */ }
       setPlans((prev) => [np, ...prev.filter((p) => p.id !== "custom")]);
       setSelected(0);
@@ -847,7 +855,7 @@ export function App() {
           <div className="advanced form-only">
             <button className="adv-toggle" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>
               <span>Advanced options</span>
-              <span className="adv-sum">{haveBike ? "on a bike · " : ""}{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
+              <span className="adv-sum">{haveBike ? `on a bike, ${minutesLeft} min left · ` : ""}{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
               <svg className={`chev${advanced ? " open" : ""}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
             {advanced && (
@@ -858,7 +866,17 @@ export function App() {
               <input type="checkbox" checked={haveBike} onChange={(e) => setHaveBike(e.target.checked)} />
               <span>I'm already on a BCycle</span>
             </label>
-            {haveBike && <p className="muted">Routes start from where you are, with no pick-up dock. They assume your 30 free minutes start now.</p>}
+            {haveBike && (
+              <>
+                <label className="left-row">
+                  <span>with</span>
+                  <input type="number" inputMode="numeric" min={0} max={STUDENT_PLAN.freeMinutes} step={1} value={leftText} aria-label="Free minutes left on your bike"
+                    onChange={(e) => setLeftText(e.target.value)} onBlur={() => setLeftText(String(minutesLeft))} onFocus={(e) => e.target.select()} />
+                  <span>minutes left</span>
+                </label>
+                <p className="muted">Routes start from where you are, with no pick-up dock. Your first ride is free for {minutesLeft} more min; after your first dock you get a fresh bike.</p>
+              </>
+            )}
           </section>
 
           <section className="card">

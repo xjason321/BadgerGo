@@ -56,6 +56,8 @@ export interface Plan {
   label: string;
   /** A walk-only option: no docks, no rides. Ignores the ride limit and terrain preferences. */
   walkOnly?: boolean;
+  /** Set when the rider starts on their own bike: free minutes left on it. */
+  startMinutesLeft?: number;
   /** Road types along the rides. Filled in after planning when the router supports it. */
   roads?: PlanRoads;
 }

@@ -76,6 +76,15 @@ self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   e.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (e.action === "stop") { // "I've docked": end the pushes, and tell the app (or open it to clear its saved timer)
+      try {
+        const sub = await self.registration.pushManager.getSubscription();
+        if (sub) await fetch("/api/timer/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+      } catch { /* the server also stops after 3 hours */ }
+      for (const old of await self.registration.getNotifications()) old.close();
+      if (wins.length) { for (const w of wins) w.postMessage({ type: "timer-stop" }); return; }
+      return self.clients.openWindow("/?stopTimer=1");
+    }
     if (wins.length) return wins[0].focus();
     return self.clients.openWindow("/");
   })());
@@ -96,6 +105,7 @@ self.addEventListener("push", (e) => {
     await self.registration.showNotification(n.title, {
       body: typeof n.body === "string" ? n.body : "", tag, icon: "/icon-192.png", badge: "/icon-192.png",
       silent: !loud, renotify: loud, ...(loud ? { vibrate: [250, 120, 250] } : {}), data: { url: "/" },
+      actions: [{ action: "stop", title: "I\u2019ve docked" }],
     });
     if (open && !n.alert) for (const old of await self.registration.getNotifications({ tag })) old.close();
   })());

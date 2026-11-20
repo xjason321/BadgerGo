@@ -637,6 +637,14 @@ export function App() {
   }, [ride.active, ride.legs, ride.index, stations]);
   const timer = useBikeTimer(endDock);
   useUsageCounts();
+  // "I've docked" on a timer notification: the service worker has stopped the pushes; clear the timer here too.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if (q.has("stopTimer")) { timer.stop(); q.delete("stopTimer"); history.replaceState(null, "", location.pathname + (q.size ? `?${q}` : "") + location.hash); }
+    const on = (e: MessageEvent) => { if (e.data?.type === "timer-stop") timer.stop(); };
+    navigator.serviceWorker?.addEventListener("message", on);
+    return () => navigator.serviceWorker?.removeEventListener("message", on);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [cues, setCues] = useState(() => readCues());
   useRideCues(cues, ride.active, ride.legs, ride.index);
   // Reaching the end of a ride leg (a dock) means the bike is docked: stop the timer.
@@ -772,7 +780,7 @@ export function App() {
           pos={ride.pos}
           error={ride.error}
           destinationName={destination.label || "your destination"}
-          onStop={() => { if (ride.done) timer.stop(); ride.stop(); }}
+          onStop={() => { timer.stop(); ride.stop(); }}
           onHeight={setDockH}
           timer={timer}
           cues={cues}

@@ -2,7 +2,8 @@
 // anonymous report, GET /api/analytics gives the dashboard's numbers. The site itself is static and is not served here.
 import { USAGE } from "../src/core/usageConfig";
 import type { StatsResponse, UsageRequest } from "../src/core/usageTypes";
-import { AppError, readJsonBody, reportDays, usageRequest } from "./validate";
+import { AppError, readJsonBody, reportDays, timerStartRequest, timerStopRequest, usageRequest } from "./validate";
+import type { PushSub } from "./webpush";
 
 /** The Usage Durable Object's methods. */
 export interface UsageRpc {
@@ -10,8 +11,17 @@ export interface UsageRpc {
   report(days: number): Promise<StatsResponse>;
 }
 
+/** The Timers Durable Objects, found by the phone's push address. */
+export interface TimersRpc {
+  start(sub: PushSub, startedAt: number): Promise<void>;
+  stop(endpoint: string): Promise<void>;
+}
+
 export interface Deps {
   usage: UsageRpc;
+  /** Bike-timer pushes; `publicKey` is the VAPID key. Both absent when push isn't set up. */
+  timers?: TimersRpc;
+  publicKey?: string;
   /** Per-client-IP limit (Cloudflare's rate limiting binding); absent: no limit (tests, local dev). */
   limiter?: { limit(o: { key: string }): Promise<{ success: boolean }> };
   now: () => number;
@@ -34,14 +44,18 @@ async function limit(deps: Deps, request: Request): Promise<void> {
   if (deps.limiter && !(await deps.limiter.limit({ key })).success) throw new AppError(429, "Too many requests");
 }
 
+/** Browsers always send Origin on a POST: only the site itself may write (scripts can forge it; the rate limit is the backstop). */
+function requireOrigin(request: Request): void {
+  if (!(USAGE.origins as readonly string[]).includes(request.headers.get("Origin") ?? "")) throw new AppError(403, "Forbidden");
+}
+
 export async function handle(request: Request, deps: Deps): Promise<Response> {
   try {
     const url = new URL(request.url);
     const method = request.method;
     if (url.pathname === "/api/usage") {
       if (method !== "POST") throw new AppError(405, "Method not allowed");
-      // Browsers always send Origin on a POST: only the site itself may report (scripts can forge it; the rate limit is the backstop).
-      if (!(USAGE.origins as readonly string[]).includes(request.headers.get("Origin") ?? "")) throw new AppError(403, "Forbidden");
+      requireOrigin(request);
       await limit(deps, request);
       const report = usageRequest(await readJsonBody(request));
       const ua = request.headers.get("User-Agent") ?? "";
@@ -57,6 +71,25 @@ export async function handle(request: Request, deps: Deps): Promise<Response> {
       const body = await deps.usage.report(days);
       cache.set(days, { atMs: deps.now(), body });
       return json(body);
+    }
+    if (url.pathname === "/api/push/key") {
+      if (method !== "GET") throw new AppError(405, "Method not allowed");
+      if (!deps.publicKey) throw new AppError(404, "Not set up");
+      return json({ key: deps.publicKey });
+    }
+    if (url.pathname === "/api/timer" || url.pathname === "/api/timer/stop") {
+      if (method !== "POST") throw new AppError(405, "Method not allowed");
+      requireOrigin(request);
+      if (!deps.timers) throw new AppError(404, "Not set up");
+      await limit(deps, request);
+      const body = await readJsonBody(request, 4096);
+      if (url.pathname === "/api/timer") {
+        const { subscription, startedAt } = timerStartRequest(body, deps.now());
+        await deps.timers.start(subscription, startedAt);
+      } else {
+        await deps.timers.stop(timerStopRequest(body).endpoint);
+      }
+      return json({ ok: true });
     }
     throw new AppError(404, "Not found");
   } catch (e) {

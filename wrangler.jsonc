@@ -8,8 +8,12 @@
   "compatibility_date": "2026-11-01",
   "routes": [{ "pattern": "badgergo.app/api/*", "zone_name": "badgergo.app" }],
   // One Usage instance keeps the anonymous daily counts behind the dashboard (/analytics).
-  "durable_objects": { "bindings": [{ "name": "USAGE", "class_name": "Usage" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Usage"] }],
+  // One Timers instance per rider's phone pushes the bike-timer countdown while a ride is on (needs the VAPID secrets, see the README).
+  "durable_objects": { "bindings": [{ "name": "USAGE", "class_name": "Usage" }, { "name": "TIMERS", "class_name": "Timers" }] },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Usage"] },
+    { "tag": "v2", "new_sqlite_classes": ["Timers"] }
+  ],
   // Per-client-IP limit. Generous: a campus network can put many riders behind one IP.
   "ratelimits": [{ "name": "USAGE_LIMITER", "namespace_id": "1005", "simple": { "limit": 300, "period": 60 } }],
   "observability": { "enabled": true }

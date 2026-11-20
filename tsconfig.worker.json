@@ -5,6 +5,6 @@
     "lib": ["ES2022"], "strict": true, "skipLibCheck": true, "noEmit": true,
     "isolatedModules": true, "types": ["@cloudflare/workers-types"]
   },
-  "include": ["worker/index.ts", "worker/app.ts", "worker/usage.ts", "worker/usageCore.ts", "worker/validate.ts", "src/core/usage*.ts"],
+  "include": ["worker/index.ts", "worker/app.ts", "worker/usage.ts", "worker/usageCore.ts", "worker/validate.ts", "worker/timers.ts", "worker/webpush.ts", "src/core/usage*.ts", "src/core/timerPush.ts"],
   "exclude": ["**/*.test.ts"]
 }

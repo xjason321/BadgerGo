@@ -99,3 +99,94 @@ describe("GET /api/analytics", () => {
 it("knows nothing else", async () => {
   expect((await handle(new Request("https://badgergo.app/api/other"), setup().deps)).status).toBe(404);
 });
+
+// --- Bike-timer pushes ---------------------------------------------------------------------------------------
+import { b64uEncode, type PushSub } from "./webpush";
+
+const NOW = 1_800_000_000_000;
+const sub = (): PushSub => ({
+  endpoint: "https://fcm.googleapis.com/fcm/send/abc",
+  keys: { p256dh: b64uEncode(Uint8Array.from([4, ...Array.from({ length: 64 }, (_, i) => i)])), auth: b64uEncode(new Uint8Array(16).fill(7)) },
+});
+function timerSetup(over: Partial<Deps> = {}) {
+  const started: { sub: PushSub; startedAt: number }[] = [];
+  const stopped: string[] = [];
+  const t = setup({ now: () => NOW, publicKey: "PUBKEY", timers: { start: async (s, startedAt) => { started.push({ sub: s, startedAt }); }, stop: async (e) => { stopped.push(e); } }, ...over });
+  return { ...t, started, stopped };
+}
+const timerReq = (path: string, body: unknown, init: { origin?: string | null; method?: string } = {}) =>
+  new Request(`https://badgergo.app${path}`, { method: init.method ?? "POST", headers: init.origin === null ? {} : { Origin: init.origin ?? ORIGIN }, ...(init.method === "GET" ? {} : { body: typeof body === "string" ? body : JSON.stringify(body) }) });
+
+describe("GET /api/push/key", () => {
+  it("gives the public key the phone subscribes with", async () => {
+    const t = timerSetup();
+    const r = await handle(new Request("https://badgergo.app/api/push/key"), t.deps);
+    expect(await r.json()).toEqual({ key: "PUBKEY" });
+  });
+  it("says it isn't set up when there is no key, so the app keeps its own notifications", async () => {
+    const t = timerSetup({ publicKey: undefined, timers: undefined });
+    expect((await handle(new Request("https://badgergo.app/api/push/key"), t.deps)).status).toBe(404);
+  });
+});
+
+describe("POST /api/timer", () => {
+  it("starts pushes for a ride", async () => {
+    const t = timerSetup();
+    const r = await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW - 60_000 }), t.deps);
+    expect(r.status).toBe(200);
+    expect(t.started).toEqual([{ sub: sub(), startedAt: NOW - 60_000 }]);
+  });
+  it("only from the site's own pages, and only when push is set up", async () => {
+    const t = timerSetup();
+    for (const origin of ["https://evil.example", null]) expect((await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW }, { origin }), t.deps)).status).toBe(403);
+    expect((await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW }, { method: "GET" }), t.deps)).status).toBe(405);
+    const off = timerSetup({ timers: undefined });
+    expect((await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW }), off.deps)).status).toBe(404);
+    expect(t.started).toEqual([]);
+  });
+  it("only sends to real push services, so the Worker can't be pointed at other sites", async () => {
+    const t = timerSetup();
+    for (const endpoint of ["https://evil.example/x", "http://fcm.googleapis.com/x", "https://fcm.googleapis.com.evil.example/x", "https://user:pw@fcm.googleapis.com/x", "https://fcm.googleapis.com:8443/x", "https://169.254.169.254/", "nope", 5]) {
+      const r = await handle(timerReq("/api/timer", { subscription: { ...sub(), endpoint }, startedAt: NOW }), t.deps);
+      expect(r.status, String(endpoint)).toBe(400);
+    }
+    for (const endpoint of ["https://updates.push.services.mozilla.com/wpush/v2/abc", "https://web.push.apple.com/abc", "https://wns2-par02p.notify.windows.com/w/?token=x"]) {
+      expect((await handle(timerReq("/api/timer", { subscription: { ...sub(), endpoint }, startedAt: NOW }), t.deps)).status, endpoint).toBe(200);
+    }
+  });
+  it("refuses bad keys and bad start times", async () => {
+    const t = timerSetup();
+    const good = sub();
+    const bads: unknown[] = [
+      { subscription: { ...good, keys: { ...good.keys, auth: b64uEncode(new Uint8Array(15)) } }, startedAt: NOW },
+      { subscription: { ...good, keys: { ...good.keys, p256dh: b64uEncode(new Uint8Array(65).fill(5)) } }, startedAt: NOW }, // not an uncompressed point
+      { subscription: { ...good, keys: { p256dh: "***", auth: good.keys.auth } }, startedAt: NOW },
+      { subscription: { endpoint: good.endpoint }, startedAt: NOW },
+      { subscription: good, startedAt: NOW - 4 * 3600_000 },
+      { subscription: good, startedAt: NOW + 3600_000 },
+      { subscription: good, startedAt: "now" },
+      { subscription: good, startedAt: 1.5 },
+      [], "{nope",
+    ];
+    for (const b of bads) expect((await handle(timerReq("/api/timer", b), t.deps)).status, JSON.stringify(b)).toBe(400);
+    expect(t.started).toEqual([]);
+  });
+  it("refuses a big body", async () => {
+    const t = timerSetup();
+    expect((await handle(timerReq("/api/timer", "x".repeat(5000)), t.deps)).status).toBe(413);
+  });
+});
+
+describe("POST /api/timer/stop", () => {
+  it("ends the pushes", async () => {
+    const t = timerSetup();
+    expect((await handle(timerReq("/api/timer/stop", { endpoint: sub().endpoint }), t.deps)).status).toBe(200);
+    expect(t.stopped).toEqual([sub().endpoint]);
+  });
+  it("same rules: the site's own pages, a real push service", async () => {
+    const t = timerSetup();
+    expect((await handle(timerReq("/api/timer/stop", { endpoint: sub().endpoint }, { origin: "https://evil.example" }), t.deps)).status).toBe(403);
+    expect((await handle(timerReq("/api/timer/stop", { endpoint: "https://evil.example" }), t.deps)).status).toBe(400);
+    expect(t.stopped).toEqual([]);
+  });
+});

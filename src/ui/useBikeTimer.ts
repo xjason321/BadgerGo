@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { crossed, readTimer, timerState, writeTimer, type TimerAlert, type TimerState } from "../core/bikeTimer";
+import { crossed, timerState, type TimerAlert, type TimerState } from "../core/bikeTimer";
+import { readTimer, writeTimer } from "../core/bikeTimerStore";
 import { alertNote, liveKey, liveNote, ALERT_TAG, LIVE_TAG } from "../core/timerNotify";
 import { beep, primeAudio, speak, vibrate } from "./feedback";
 import { askNotifyPermission, closeNote, notifyState, showNote, type NotifyState } from "./notify";
+import { startPush, stopPush } from "./timerPush";
 import { countUse } from "./usage";
 
 const SAY: Record<TimerAlert, string> = {
@@ -19,6 +21,10 @@ export function useBikeTimer() {
   const [alert, setAlert] = useState<TimerAlert | null>(null);
   const lastSec = useRef<number | null>(null);
   const [notify, setNotify] = useState<NotifyState>(() => notifyState());
+  // The server pushes this ride's notifications (the phone freezes the page in the background, so it can't keep a notification current itself).
+  const [pushed, setPushed] = useState(false);
+  const pushedRef = useRef(false);
+  pushedRef.current = pushed;
   // The page is in the background (the rider switched to a maps app): that's when the notifications matter most.
   const [hidden, setHidden] = useState(() => document.visibilityState === "hidden");
   useEffect(() => {
@@ -52,9 +58,17 @@ export function useBikeTimer() {
     beep(a === "early" ? 1 : soft ? 2 : 3, soft ? 880 : 660);
     speak(SAY[a]);
     // The same alert as a notification: it reaches the rider in another app, and waits in the tray otherwise. Quiet while the app is open (the beep and voice above already did the job).
-    const note = alertNote(a, state);
+    const note = pushedRef.current ? null : alertNote(a, state); // pushed rides get the alert from the server
     if (note) void showNote(note, { silent: document.visibilityState === "visible" });
   }, [state?.elapsedSec]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const running = startedAt != null;
+  useEffect(() => {
+    if (!running || notify !== "on" || startedAt == null) { setPushed(false); return; }
+    let current = true;
+    void startPush(startedAt).then((ok) => { if (current) setPushed(ok); });
+    return () => { current = false; };
+  }, [startedAt, running, notify]);
 
   /** Ask for notification permission (from a tap); counts when alerts get turned on. */
   const askNotify = useCallback(() => {
@@ -75,16 +89,18 @@ export function useBikeTimer() {
   const stop = useCallback(() => {
     setStartedAt(null); setAlert(null); writeTimer(null);
     void closeNote(LIVE_TAG); void closeNote(ALERT_TAG);
+    void stopPush();
   }, []);
   const enableNotify = askNotify;
 
   // While the app is in the background, one notification that keeps itself current: minutes left, updated every minute.
-  // (Web apps can't draw a ticking clock in a notification, and the browser only wakes a hidden page about once a minute anyway.)
+  // The server pushes it (worker/timers.ts). Without push (not set up, or this browser can't), the page does it itself,
+  // which only works until the phone freezes the page, about a minute after the rider leaves.
   const key = state ? liveKey(state) : null;
   useEffect(() => {
     if (!state || !hidden || notify !== "on") { void closeNote(LIVE_TAG); return; }
-    void showNote(liveNote(state), { silent: true });
-  }, [key, hidden, notify]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!pushed) void showNote(liveNote(state), { silent: true }); // pushed rides get it from the server
+  }, [key, hidden, notify, pushed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { running: startedAt != null, state, alert, start, stop, notify, enableNotify };
 }

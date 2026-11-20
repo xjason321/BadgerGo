@@ -21,7 +21,13 @@ function worker() {
   };
   const handlers: Record<string, (e: any) => void> = {};
   const opened: string[] = []; const focused: number[] = []; const wins: { focus: () => Promise<void> }[] = [];
-  const self = { addEventListener: (t: string, h: (e: any) => void) => { handlers[t] = h; }, skipWaiting: () => {}, clients: { claim: async () => {}, matchAll: async () => wins, openWindow: async (u: string) => { opened.push(u); } } };
+  const shown: Array<{ title: string; [k: string]: unknown }> = [];
+  const closedTags: string[] = [];
+  const registration = {
+    showNotification: async (title: string, o: Record<string, unknown>) => { shown.push({ title, ...o }); },
+    getNotifications: async ({ tag }: { tag: string }) => shown.filter((n) => n.tag === tag).map(() => ({ close: () => { closedTags.push(tag); } })),
+  };
+  const self = { registration, addEventListener: (t: string, h: (e: any) => void) => { handlers[t] = h; }, skipWaiting: () => {}, clients: { claim: async () => {}, matchAll: async () => wins, openWindow: async (u: string) => { opened.push(u); } } };
   new Function("self", "caches", "fetch", "location", "setTimeout", "Response", "URL", swSource)(self, caches, fetcher, { origin: "https://badgergo.app" }, setTimeout, Response, URL);
   /** Run a request through the worker: its response, or null when the worker doesn't touch it. */
   const run = async (url: string, init: { method?: string; mode?: string } = {}): Promise<Response | null> => {
@@ -37,7 +43,14 @@ function worker() {
     await work;
     return { closed };
   };
-  return { run, net, stores, tap, opened, focused, wins, disk };
+  /** A push arrives: `data` is what the server sent (an object, raw text, or nothing). */
+  const push = async (data: unknown) => {
+    let work: Promise<unknown> | null = null;
+    const body = data === undefined ? null : { json: () => (typeof data === "string" ? JSON.parse(data) : data) };
+    handlers.push({ data: body, waitUntil: (p: Promise<unknown>) => { work = p; } });
+    await work;
+  };
+  return { run, net, stores, tap, opened, focused, wins, disk, shown, closedTags, push };
 }
 const text = async (r: Response | null) => (r ? r.text() : null);
 
@@ -133,5 +146,52 @@ describe("a full disk", () => {
     const app = [...w.stores.entries()].find(([k]) => k.startsWith("badgergo-app"))![1];
     expect(app.size).toBeLessThanOrEqual(81);
     expect(app.has("https://badgergo.app/")).toBe(true);
+  });
+
+  describe("bike timer pushes", () => {
+    const live = { title: "12 min left free", body: "Dock before it runs out", tag: "badgergo-timer-live", alert: false };
+    const alert = { title: "5 min left on your free ride", body: "Dock within 5 min", tag: "badgergo-timer-alert", alert: true };
+    const win = (visibilityState: string) => ({ visibilityState, focus: async () => {} });
+
+    it("shows the countdown quietly when the app is in the background", async () => {
+      const w = worker();
+      await w.push(live);
+      expect(w.shown).toEqual([expect.objectContaining({ title: "12 min left free", body: "Dock before it runs out", tag: "badgergo-timer-live", silent: true, renotify: false })]);
+      expect(w.closedTags).toEqual([]);
+    });
+    it("an alert buzzes and sounds, and replaces the last alert", async () => {
+      const w = worker();
+      await w.push(alert);
+      expect(w.shown[0]).toMatchObject({ tag: "badgergo-timer-alert", silent: false, renotify: true, vibrate: [250, 120, 250] });
+    });
+    it("with the app on screen the countdown is taken straight down (the app shows it) and an alert stays quiet", async () => {
+      const w = worker();
+      w.wins.push(win("visible"));
+      await w.push(live);
+      expect(w.closedTags).toEqual(["badgergo-timer-live"]);
+      await w.push(alert);
+      expect(w.shown[1]).toMatchObject({ silent: true, renotify: false });
+      expect(w.closedTags).toEqual(["badgergo-timer-live"]); // the alert is left in the tray
+    });
+    it("a hidden window doesn't count as the app being on screen", async () => {
+      const w = worker();
+      w.wins.push(win("hidden"));
+      await w.push(alert);
+      expect(w.shown[0]).toMatchObject({ silent: false });
+    });
+    it("always shows something, even for a push it can't read", async () => {
+      for (const data of [undefined, "{broken", { nope: 1 }, { title: 5 }]) {
+        const w = worker();
+        await w.push(data);
+        expect(w.shown).toHaveLength(1);
+        expect(w.shown[0]).toMatchObject({ title: "BadgerGo bike timer", tag: "badgergo-timer-live" });
+      }
+    });
+    it("never combines silent with renotify (browsers reject that)", async () => {
+      const w = worker();
+      w.wins.push(win("visible"));
+      for (const n of [live, alert]) await w.push(n);
+      for (const n of w.shown) expect(n.silent === true && n.renotify === true).toBe(false);
+    });
   });
 });

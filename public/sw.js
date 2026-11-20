@@ -80,3 +80,23 @@ self.addEventListener("notificationclick", (e) => {
     return self.clients.openWindow("/");
   })());
 });
+
+/** The bike timer's pushes (sent by the stats Worker once a minute during a ride): the phone freezes the page in the
+    background, so this is what keeps the notification current. Each push must show a notification, or browsers
+    penalise the site; the countdown is shown quietly and taken down again if the app is already on screen. */
+self.addEventListener("push", (e) => {
+  let n = null;
+  try { n = e.data ? e.data.json() : null; } catch { /* not JSON */ }
+  if (!n || typeof n.title !== "string") n = { title: "BadgerGo bike timer", body: "Open BadgerGo to see your time.", tag: "badgergo-timer-live", alert: false };
+  const tag = typeof n.tag === "string" ? n.tag : "badgergo-timer-live";
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const open = wins.some((w) => w.visibilityState === "visible"); // the app is on screen: it beeps and speaks itself
+    const loud = n.alert === true && !open;
+    await self.registration.showNotification(n.title, {
+      body: typeof n.body === "string" ? n.body : "", tag, icon: "/icon-192.png", badge: "/icon-192.png",
+      silent: !loud, renotify: loud, ...(loud ? { vibrate: [250, 120, 250] } : {}), data: { url: "/" },
+    });
+    if (open && !n.alert) for (const old of await self.registration.getNotifications({ tag })) old.close();
+  })());
+});

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { clock, crossed, readTimer, timerState, writeTimer } from "./bikeTimer";
+import { clock, crossed, timerState } from "./bikeTimer";
+import { readTimer, writeTimer } from "./bikeTimerStore";
 
 const T0 = 1_000_000_000_000;
 const at = (sec: number) => T0 + sec * 1000;

@@ -30,3 +30,18 @@ Anonymous usage counts, shown at `https://badgergo.app/analytics` (anyone with t
   ```
   Then deploy the site as usual. Numbers start from the first visit after both are live.
 - `npm run build` type-checks the app and the worker; `npm test` covers both.
+
+## Bike timer notifications
+
+While the bike timer runs and the rider has switched to another app, phones freeze BadgerGo after about a minute, so the page can't update its own notification. Instead the same Worker pushes it (Web Push): once a minute it sends the countdown, and at 10 min, 5 min, time-up and each extra charge it sends a louder alert. Without this set up the app falls back to updating the notification itself, which stops about a minute after the rider leaves the app.
+
+- **One-time setup** (after `npm run deploy:stats` works):
+  ```
+  npm run vapid          # prints the two commands below with your new key pair
+  npx wrangler secret put VAPID_PUBLIC_KEY
+  npx wrangler secret put VAPID_PRIVATE_JWK
+  npm run deploy:stats
+  ```
+  Until both secrets exist, `/api/push/key` answers 404 and the app uses its own notifications. Keep the private value out of the repo.
+- **iPhone:** web push only works for the Home Screen app (iOS 16.4 or later). In Safari the app keeps its old behaviour.
+- **What the server keeps:** only while a ride is on, the phone's push address and the ride's start time. They are deleted when the rider taps Stop, when the phone drops the subscription, or after 3 hours. Only real push services (Google, Apple, Mozilla, Microsoft) are accepted as destinations.

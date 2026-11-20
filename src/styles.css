@@ -697,10 +697,6 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .backups button span { font-weight: 800; margin-right: 4px; }
 .backups button i { font-style: normal; opacity: .65; display: block; }
 
-/* ---------- saved places ---------- */
-.star-btn.star-on { color: #b7791f; }
-.star-btn.star-on svg { fill: currentColor; }
-
 /* ---------- nearest bike / dock ---------- */
 .near { display: grid; gap: 8px; margin-top: 12px; }
 .near-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -716,7 +712,6 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .near-go { display: grid; place-items: center; min-width: 56px; border-radius: 12px; background: var(--lime); color: #0b3b25; font-weight: 800; text-decoration: none; }
 [data-theme="dark"] .near-btn { color: var(--lime); }
 [data-theme="dark"] .near-btn.on { background: var(--lime); color: #062a1a; }
-[data-theme="dark"] .star-btn.star-on { color: #fbbf24; }
 
 /* ---------- weather chips ---------- */
 .wx { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }

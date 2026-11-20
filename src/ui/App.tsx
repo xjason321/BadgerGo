@@ -10,7 +10,7 @@ import { planRoutes, rankPlans } from "../core/planner";
 import { analyzePlan, strictRefiner } from "../core/roads";
 import { FallbackProvider, OsrmProvider, ValhallaProvider } from "../core/routing";
 import { DEFAULT_PREFS, STUDENT_PLAN, type Place, type Plan, type RoadPrefs, type Station } from "../core/types";
-import { BikeIcon, InfoIcon, MoonIcon, PinIcon, SearchIcon, StarIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
+import { BikeIcon, InfoIcon, MoonIcon, PinIcon, SearchIcon, SunIcon, TargetIcon, WalkIcon } from "./icons";
 import { MapView } from "./MapView";
 import { PlaceMenu } from "./PlaceMenu";
 import { NearestDocks } from "./NearestDocks";
@@ -23,7 +23,7 @@ import { useRideCues } from "./useRideCues";
 import { readCues, writeCues } from "../core/cues";
 import { ago, loadStations } from "../core/stationCache";
 import { clearSession, readSession, saveSession, type Session } from "../core/rideSession";
-import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
+import { addRecent, readPlaces, rememberable, toStored, writePlaces, type Places } from "../core/savedPlaces";
 import { DockMenu } from "./DockMenu";
 import { PencilIcon, ShareIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
@@ -360,13 +360,12 @@ export function App() {
   const set = (t: Target, p: Place) => (t === "origin" ? setOrigin(p) : setDestination(p));
 
   const [sugg, setSugg] = useState<{ t: Target; items: CampusPlace[] } | null>(null);
-  /** Saved places (starred) and the last places searched, kept on this device. */
+  /** The last places searched, kept on this device. */
   const [mine, setMine] = useState<Places>(() => readPlaces());
   const updateMine = (f: (p: Places) => Places) => setMine((cur) => { const next = f(cur); writePlaces(next); return next; });
-  /** With an empty box, offer the saved places first, then the recent ones. */
+  /** With an empty box, offer the recent searches. */
   const showMine = (t: Target) => {
     const items: CampusPlace[] = [
-      ...mine.saved.map((m) => ({ name: m.name, lat: m.lat, lon: m.lon, address: "★ Saved place", kind: "n" as const })),
       ...mine.recents.map((m) => ({ name: m.name, lat: m.lat, lon: m.lon, address: "Recent search", kind: "n" as const })),
     ];
     setSugg(items.length ? { t, items } : null);
@@ -873,16 +872,6 @@ export function App() {
                 >
                   <PinIcon />
                 </button>
-                {(() => {
-                  const pl = t === "origin" ? origin : destination;
-                  if (!pl || !rememberable(pl)) return null;
-                  const on = isSaved(mine, toStored(pl));
-                  return (
-                    <button className={`icon-btn star-btn${on ? " star-on" : ""}`} onClick={() => updateMine((m) => toggleSaved(m, toStored(pl)))} title={on ? "Remove from saved places" : "Save this place"} aria-label={on ? "Remove from saved places" : "Save this place"} aria-pressed={on}>
-                      <StarIcon />
-                    </button>
-                  );
-                })()}
                 <button className="icon-btn" onClick={() => search(t)} disabled={busy} title="Search" aria-label="Search">
                   <SearchIcon />
                 </button>

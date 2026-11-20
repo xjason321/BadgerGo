@@ -7,6 +7,7 @@ import { overageCost } from "../core/pricing";
 import { STUDENT_PLAN, type Plan, type Station } from "../core/types";
 import { AlertIcon, BikeIcon, CheckIcon, ClockIcon, CloseIcon, DollarIcon, PencilIcon, RouteIcon, SwapIcon, WalkIcon } from "./icons";
 import { ElevationProfile } from "./ElevationProfile";
+import { startsOnBike } from "../core/myBike";
 import { RoadBar } from "./RoadBar";
 import { StreetViewLinks } from "./StreetViewLinks";
 
@@ -77,14 +78,24 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
       </div>
 
       <ol className="tl">
-        <li>
-          <span className="node walk"><WalkIcon size={16} /></span>
-          <div className="step">
-            <span className="what">{min(p.walkToDock.durationMin)} walk</span>
-            <span className="to">to {p.stations[0].name}</span>
-            <Pill n={p.stations[0].isRenting ? p.stations[0].bikesAvailable : 0} noun="bike" />
-          </div>
-        </li>
+        {startsOnBike(p) ? (
+          <li>
+            <span className="node bike"><BikeIcon size={16} /></span>
+            <div className="step">
+              <span className="what">Start on your bike</span>
+              <span className="to">from where you are</span>
+            </div>
+          </li>
+        ) : (
+          <li>
+            <span className="node walk"><WalkIcon size={16} /></span>
+            <div className="step">
+              <span className="what">{min(p.walkToDock.durationMin)} walk</span>
+              <span className="to">to {p.stations[0].name}</span>
+              <Pill n={p.stations[0].isRenting ? p.stations[0].bikesAvailable : 0} noun="bike" />
+            </div>
+          </li>
+        )}
         {p.rides.map((r, j) => {
           const to = p.stations[j + 1];
           const last = j === p.rides.length - 1;

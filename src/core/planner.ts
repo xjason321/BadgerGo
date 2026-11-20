@@ -1,5 +1,6 @@
 import { SWAP_MINUTES } from "../config";
 import { haversine } from "./geo";
+import { isMyBike, myBikeStation, NO_WALK } from "./myBike";
 import { overageCost } from "./pricing";
 import { exposureM } from "./roads";
 import { RIDE_SPEED_KPH } from "../config";
@@ -23,6 +24,8 @@ export interface PlanOptions {
    * near the trip, and keep anything faster (default 2; 0 turns the check off).
    */
   verifySwaps?: number;
+  /** The rider already has a bike: the first ride starts at the origin, with no pick-up dock or walk to one. */
+  startWithBike?: boolean;
   /** Pick-up and drop-off docks further than this walk away are skipped (unless none are closer). */
   maxWalkMinutes?: number;
   /** How many plans to return. */
@@ -203,7 +206,7 @@ export async function planRoutes(
     const close = all.filter((s) => walkEstimate(to, s) <= maxWalk);
     return close.length ? close : all;
   };
-  const starts = near(origin, (s) => s.isRenting && s.bikesAvailable > 0);
+  const starts = opts.startWithBike ? [myBikeStation(origin)] : near(origin, (s) => s.isRenting && s.bikesAvailable > 0);
   const ends = near(destination, (s) => s.isReturning && s.docksAvailable > 0);
   if (!starts.length) throw new Error("No docks with available bikes found.");
   if (!ends.length) throw new Error("No docks with open spaces found.");
@@ -472,7 +475,7 @@ export async function planRoutes(
       const first = c.path[0];
       const last = c.path[c.path.length - 1];
       const [walkTo, walkFrom, ...rides] = await Promise.all([
-        walk(origin, first, `o>${first.id}`),
+        isMyBike(first) ? Promise.resolve(NO_WALK) : walk(origin, first, `o>${first.id}`),
         walk(last, destination, `${last.id}>d`),
         ...c.path.slice(1).map((to, i) => ride(c.path[i], to)),
       ]);
@@ -529,7 +532,7 @@ export async function buildCustomPlan(
   const start = chain[0];
   const last = chain[chain.length - 1];
   const [walkTo, walkFrom, ...rides] = await Promise.all([
-    provider.route("walk", origin, start, false).then((r) => first(r, "walking")),
+    isMyBike(start) ? Promise.resolve(NO_WALK) : provider.route("walk", origin, start, false).then((r) => first(r, "walking")),
     provider.route("walk", last, destination, false).then((r) => first(r, "walking")),
     ...chain.slice(1).map((to, i) =>
       provider.route("bike", chain[i], to, false).then(async (r) => {

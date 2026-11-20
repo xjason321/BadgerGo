@@ -17,6 +17,7 @@ import { NearestDocks } from "./NearestDocks";
 import { WeatherChip } from "./WeatherChip";
 import { describePlans } from "../core/planNotes";
 import { googleDirectUrl } from "../core/navLinks";
+import { startsOnBike } from "../core/myBike";
 import { useRideCues } from "./useRideCues";
 import { readCues, writeCues } from "../core/cues";
 import { ago, loadStations } from "../core/stationCache";
@@ -54,6 +55,8 @@ export function App() {
   const [picking, setPicking] = useState<Target | null>(null);
   const [maxRide, setMaxRide] = useState(25);
   const [swapsOn, setSwapsOn] = useState(true);
+  /** Already on a BCycle: the first ride starts where you are, with no pick-up dock. */
+  const [haveBike, setHaveBike] = useState(false);
   const [prefs, setPrefs] = useState<RoadPrefs>(DEFAULT_PREFS);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState(0);
@@ -158,7 +161,7 @@ export function App() {
 
   // What the current routes were computed from: Find routes stays off until one of these changes.
   const sigOf = (o: Place | null, d: Place | null) =>
-    JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, prefs]);
+    JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, haveBike, prefs]);
   const [doneSig, setDoneSig] = useState("");
   useEffect(() => { if (strip.current) strip.current.scrollLeft = 0; }, [plans]);
   const goBack = () => { setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
@@ -498,6 +501,7 @@ export function App() {
         found = await planRoutes(origin, destination, stations, provider, {
           maxRideMinutes: limit,
           maxSwaps: swapsOn ? Infinity : 0,
+          startWithBike: haveBike,
           refineRide: prefs.strict && prefs.traffic < KINDS.length - 1 ? strictRefiner(provider, prefs.traffic) : undefined,
         });
       } catch (e) { planError = e as Error; }
@@ -584,7 +588,7 @@ export function App() {
 
   // ---- Custom route: the rider picks the docks (pencil on a card, or a dock's popup / long-press menu on the map) ----
   const bikePlan = plan && !plan.walkOnly ? plan : null;
-  const chainIds = bikePlan ? bikePlan.stations.map((s) => s.id) : null;
+  const chainIds = bikePlan && !startsOnBike(bikePlan) ? bikePlan.stations.map((s) => s.id) : null; // no dock editing when you start on your own bike
   const rebuildCustom = async (chain: Station[]) => {
     if (!origin || !destination) return;
     setBusy(true);
@@ -624,6 +628,7 @@ export function App() {
       return;
     }
     if (!bikePlan) return;
+    if (startsOnBike(bikePlan)) { setStatus("Custom docks aren't available when you start with a bike. Turn that option off to edit docks."); return; }
     const next = editChain(bikePlan.stations, s, act);
     if (!next) return;
     if (bikePlan.id !== "custom") startEdit(bikePlan);
@@ -702,7 +707,7 @@ export function App() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
             Back
           </button>
-          {bikePlan && !(editing && bikePlan.id === "custom") && (
+          {bikePlan && !startsOnBike(bikePlan) && !(editing && bikePlan.id === "custom") && (
             <button className="edit-fab" onClick={() => startEdit(bikePlan)} aria-label="Edit this route's docks" title="Edit docks">
               <PencilIcon size={20} />
             </button>
@@ -842,11 +847,20 @@ export function App() {
           <div className="advanced form-only">
             <button className="adv-toggle" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>
               <span>Advanced options</span>
-              <span className="adv-sum">{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
+              <span className="adv-sum">{haveBike ? "on a bike · " : ""}{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
               <svg className={`chev${advanced ? " open" : ""}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
             {advanced && (
               <div className="adv-body">
+          <section className="card">
+            <h2>Starting with a bike</h2>
+            <label className="check">
+              <input type="checkbox" checked={haveBike} onChange={(e) => setHaveBike(e.target.checked)} />
+              <span>I'm already on a BCycle</span>
+            </label>
+            {haveBike && <p className="muted">Routes start from where you are, with no pick-up dock. They assume your 30 free minutes start now.</p>}
+          </section>
+
           <section className="card">
             <h2>Bike swapping</h2>
             <label className="check">
@@ -914,7 +928,7 @@ export function App() {
                   selected={i === selected}
                   trafficLevel={prefs.traffic}
                   onSelect={() => selectCard(i)}
-                  onEdit={p.walkOnly ? undefined : () => startEdit(p)}
+                  onEdit={p.walkOnly || startsOnBike(p) ? undefined : () => startEdit(p)}
                   editing={editing && p.id === "custom"}
                   onRemoveStop={(k) => { const next = p.stations.filter((_, j) => j !== k); if (next.length >= 2) rebuildCustom(next); }}
                   onReorder={(next) => rebuildCustom(next)}

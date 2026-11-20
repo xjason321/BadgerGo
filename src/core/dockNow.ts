@@ -1,4 +1,5 @@
 import { haversine } from "./geo";
+import { isMyBike } from "./myBike";
 import type { LatLng, Station } from "./types";
 
 /** A dock the rider can put a bike back in right now. */
@@ -58,7 +59,7 @@ export function backupDocks(plan: { stations: Station[] }, stations: Station[], 
   const last = plan.stations[plan.stations.length - 1];
   if (!first || !last) return { pickup: null, dropoff: null };
   return {
-    pickup: best(first, (s) => s.isRenting && s.bikesAvailable > 0),
+    pickup: isMyBike(first) ? null : best(first, (s) => s.isRenting && s.bikesAvailable > 0), // already on a bike: nothing to pick up
     dropoff: best(last, canDock),
   };
 }

@@ -5,6 +5,7 @@ import { appleLegUrl, googleDirectUrl, googleLegUrl, type NavLeg } from "../core
 import { fullReason, fullWarning, nearestOpenDocks, type DockChoice } from "../core/dockNow";
 import { formatDistance } from "../core/ride";
 import { clock, type TimerAlert, type TimerState } from "../core/bikeTimer";
+import type { NotifyState } from "./notify";
 import type { LatLng, Plan, Station } from "../core/types";
 import { StreetViewLinks } from "./StreetViewLinks";
 import { BikeIcon, CheckIcon, ClockIcon, CloseIcon, VolumeIcon, VolumeOffIcon, WalkIcon } from "./icons";
@@ -38,7 +39,7 @@ interface Props {
   /** Show a station on the map. */
   onFocusStation: (s: Station) => void;
   /** The bike timer: running or not, its numbers, the latest alert, and start / stop. */
-  timer: { running: boolean; state: TimerState | null; alert: TimerAlert | null; start: (usedMin?: number) => void; stop: () => void };
+  timer: { running: boolean; state: TimerState | null; alert: TimerAlert | null; start: (usedMin?: number) => void; stop: () => void; notify: NotifyState; enableNotify: () => void };
 }
 
 /** Ride mode's bottom panel: the current leg (the map above frames it), arrows between legs, and a hand-off to Google / Apple Maps. */
@@ -107,7 +108,7 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, t
             ) : null;
           })()}
           {timer.running && timer.state ? (
-            <BikeTimer s={timer.state} alert={timer.alert} onStop={timer.stop} />
+            <BikeTimer s={timer.state} alert={timer.alert} onStop={timer.stop} notify={timer.notify} onEnableNotify={timer.enableNotify} />
           ) : leg.kind === "ride" ? (
             <button className="nav-timer-start" onClick={() => timer.start()}><ClockIcon size={18} /> I've unlocked a bike: start the 30-min timer</button>
           ) : null}
@@ -143,7 +144,7 @@ export function NavSheet({ legs, index, onIndex, pos, error, onStop, onHeight, t
 }
 
 /** The running timer: big clock, a bar, and what it will cost to go over. */
-function BikeTimer({ s, alert, onStop }: { s: TimerState; alert: TimerAlert | null; onStop: () => void }) {
+function BikeTimer({ s, alert, onStop, notify, onEnableNotify }: { s: TimerState; alert: TimerAlert | null; onStop: () => void; notify: NotifyState; onEnableNotify: () => void }) {
   const over = s.phase === "over";
   const mmss = over ? `+${clock(-s.remainingSec)}` : clock(s.remainingSec);
   return (
@@ -161,6 +162,9 @@ function BikeTimer({ s, alert, onStop }: { s: TimerState; alert: TimerAlert | nu
             ? `Dock within ${Math.max(1, Math.ceil(s.remainingSec / 60))} min to stay free.`
             : "Free for the first 30 minutes of each ride."}
       </small>
+      {notify === "on" && <small className="nav-timer-note">Alerts at 10 and 5 min left, even if you switch apps.</small>}
+      {notify === "off" && <button className="nav-timer-notify" onClick={onEnableNotify}>Turn on alerts at 10 and 5 min left</button>}
+      {notify === "blocked" && <small className="nav-timer-note">Notifications are blocked for BadgerGo in your browser settings.</small>}
     </div>
   );
 }

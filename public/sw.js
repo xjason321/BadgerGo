@@ -60,3 +60,13 @@ self.addEventListener("fetch", (e) => {
   if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com") return e.respondWith(staleWhileRevalidate(req, APP));
   if (url.origin === location.origin && !url.pathname.startsWith("/valhalla")) return e.respondWith(staleWhileRevalidate(req, APP));
 });
+
+/** Tapping a timer notification brings BadgerGo forward (or opens it). */
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (wins.length) return wins[0].focus();
+    return self.clients.openWindow("/");
+  })());
+});

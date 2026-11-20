@@ -79,3 +79,18 @@ describe("timer started part-way through the free window", () => {
     expect(timerState(now - 26 * 60_000, now).phase).toBe("warn");
   });
 });
+
+describe("the 10-minute heads-up", () => {
+  it("fires at 20:00 elapsed, then the 5-minute warning at 25:00", () => {
+    expect(crossed(20 * 60 - 1, 20 * 60)).toBe("early");
+    expect(crossed(20 * 60, 20 * 60 + 1)).toBeNull();
+    expect(crossed(25 * 60 - 1, 25 * 60)).toBe("warn");
+  });
+  it("reports only the most serious alert after a long gap", () => {
+    expect(crossed(19 * 60, 26 * 60)).toBe("warn");
+    expect(crossed(10 * 60, 21 * 60)).toBe("early");
+  });
+  it("doesn't fire when the timer starts after the 10-minute mark (a bike that was already part-way through)", () => {
+    expect(crossed(22 * 60, 22 * 60 + 1)).toBeNull();
+  });
+});

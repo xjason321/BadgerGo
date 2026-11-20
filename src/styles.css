@@ -787,3 +787,6 @@ a.start-fab { text-decoration: none; }
 }
 [data-theme="dark"] .share-fab { background: #12261a; border-color: #ffffff59; }
 .toast { position: fixed; z-index: 900; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: min(92vw, 420px); padding: 10px 16px; border-radius: 999px; background: #0b3b25; color: #fff; border: 2px solid #b8f23a; font-weight: 700; font-size: 14px; box-shadow: 0 8px 24px #0006; text-align: center; }
+
+.nav-timer-note { color: var(--muted); font-size: 12px; }
+.nav-timer-notify { justify-self: start; border: 0; padding: 0; background: none; color: var(--ink); font-size: 12.5px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

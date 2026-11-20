@@ -19,7 +19,8 @@ function worker() {
     return new Response(`net:${u}`, { status: 200 });
   };
   const handlers: Record<string, (e: any) => void> = {};
-  const self = { addEventListener: (t: string, h: (e: any) => void) => { handlers[t] = h; }, skipWaiting: () => {}, clients: { claim: async () => {} } };
+  const opened: string[] = []; const focused: number[] = []; const wins: { focus: () => Promise<void> }[] = [];
+  const self = { addEventListener: (t: string, h: (e: any) => void) => { handlers[t] = h; }, skipWaiting: () => {}, clients: { claim: async () => {}, matchAll: async () => wins, openWindow: async (u: string) => { opened.push(u); } } };
   new Function("self", "caches", "fetch", "location", "setTimeout", "Response", "URL", swSource)(self, caches, fetcher, { origin: "https://badgergo.app" }, setTimeout, Response, URL);
   /** Run a request through the worker: its response, or null when the worker doesn't touch it. */
   const run = async (url: string, init: { method?: string; mode?: string } = {}): Promise<Response | null> => {
@@ -28,7 +29,14 @@ function worker() {
     handlers.fetch({ request: req, respondWith: (p: Promise<Response>) => { out = p; } });
     return out;
   };
-  return { run, net, stores };
+  /** Tap a notification: whether it closed, and what the worker did with the app window. */
+  const tap = async () => {
+    let closed = false; let work: Promise<unknown> | null = null;
+    handlers.notificationclick({ notification: { close: () => { closed = true; } }, waitUntil: (p: Promise<unknown>) => { work = p; } });
+    await work;
+    return { closed };
+  };
+  return { run, net, stores, tap, opened, focused, wins };
 }
 const text = async (r: Response | null) => (r ? r.text() : null);
 
@@ -73,5 +81,20 @@ describe("service worker", () => {
     await new Promise((r) => setTimeout(r, 20));
     const tiles = [...w.stores.entries()].find(([n]) => n.includes("tiles"))![1];
     expect(tiles.size).toBeLessThanOrEqual(600);
+  });
+});
+
+describe("notification taps", () => {
+  it("opens the app when it isn't open", async () => {
+    const w = worker();
+    expect((await w.tap()).closed).toBe(true);
+    expect(w.opened).toEqual(["/"]);
+  });
+  it("brings the open app forward instead of opening another", async () => {
+    const w = worker();
+    w.wins.push({ focus: async () => { w.focused.push(1); } });
+    await w.tap();
+    expect(w.focused).toEqual([1]);
+    expect(w.opened).toEqual([]);
   });
 });

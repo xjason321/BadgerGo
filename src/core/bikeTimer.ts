@@ -1,8 +1,10 @@
 import { overageCost } from "./pricing";
 import { STUDENT_PLAN, type PricingPlan } from "./types";
 
-/** How many minutes before the free limit the rider gets the first warning. */
+/** How many minutes before the free limit the rider gets the final warning. */
 export const WARN_BEFORE_MIN = 5;
+/** ...and the heads-up before that. */
+export const EARLY_WARN_MIN = 10;
 
 export type TimerPhase = "free" | "warn" | "over";
 
@@ -30,8 +32,8 @@ export function timerState(startedAt: number, now: number, plan: PricingPlan = S
 }
 
 /** Which alert, if any, the clock passed between two moments: the warning, the free limit, or a further charge. */
-export type TimerAlert = "warn" | "limit" | "block";
-export function crossed(prevSec: number, nextSec: number, plan: PricingPlan = STUDENT_PLAN, warnMin = WARN_BEFORE_MIN): TimerAlert | null {
+export type TimerAlert = "early" | "warn" | "limit" | "block";
+export function crossed(prevSec: number, nextSec: number, plan: PricingPlan = STUDENT_PLAN, warnMin = WARN_BEFORE_MIN, earlyMin = EARLY_WARN_MIN): TimerAlert | null {
   if (nextSec <= prevSec) return null;
   const freeSec = plan.freeMinutes * 60;
   const blockSec = plan.blockMinutes * 60;
@@ -41,6 +43,7 @@ export function crossed(prevSec: number, nextSec: number, plan: PricingPlan = ST
   if (nextSec > freeSec && k >= 1 && passed(freeSec + k * blockSec)) return "block";
   if (passed(freeSec)) return "limit";
   if (passed(freeSec - warnMin * 60)) return "warn";
+  if (passed(freeSec - earlyMin * 60)) return "early";
   return null;
 }
 

@@ -3,9 +3,8 @@ import { useState } from "react";
 type Os = "ios" | "android";
 const APP = "BadgerGo";
 
-const STEPS: Record<Os, { title: string; steps: string[]; note: string }> = {
+const STEPS: Record<Os, { steps: string[] }> = {
   ios: {
-    title: "Add to your iPhone home screen",
     steps: [
       "Open this page in Safari.",
       "Tap the Share button (the square with an arrow). If you don’t see it, tap ••• first.",
@@ -13,10 +12,8 @@ const STEPS: Record<Os, { title: string; steps: string[]; note: string }> = {
       "Make sure “Open as Web App” is on, then tap Add.",
       `Open ${APP} from your home screen.`,
     ],
-    note: "It opens full screen like a regular app, no App Store needed.",
   },
   android: {
-    title: "Add to your Android home screen",
     steps: [
       "Open this page in Chrome.",
       "Tap the ⋮ menu at the top right.",
@@ -24,39 +21,38 @@ const STEPS: Record<Os, { title: string; steps: string[]; note: string }> = {
       "Tap Install, then Add.",
       `Open ${APP} from your home screen or app drawer.`,
     ],
-    note: "It opens full screen like a regular app, no Play Store needed.",
   },
 };
-
-function platform(): "ios" | "android" | "desktop" {
-  const ua = navigator.userAgent;
-  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
-  if (/Android/.test(ua)) return "android";
-  return "desktop";
-}
 
 /** Already running as an installed home-screen app. */
 function isStandalone(): boolean {
   return window.matchMedia?.("(display-mode: standalone)").matches === true || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
-/** "Add to your home screen" steps, shown at the top of the info page (nothing once the app is already installed). */
+/** "Add to your home screen" steps at the top of the info page: collapsed, and no phone picked, until asked (nothing once installed). */
 export function InstallGuide() {
-  const detected = platform();
-  const [os, setOs] = useState<Os>(detected === "android" ? "android" : "ios");
+  const [open, setOpen] = useState(false);
+  const [os, setOs] = useState<Os | null>(null);
   if (isStandalone()) return null;
-  const info = STEPS[os];
   return (
-    <section className="install-guide" aria-labelledby="install-title">
-      <h3 id="install-title">Get {APP} on your phone</h3>
-      <p>Add it to your home screen so it opens like an app.</p>
-      <div className="install-os" role="tablist" aria-label="Your phone">
-        {(["ios", "android"] as const).map((o) => (
-          <button key={o} role="tab" aria-selected={os === o} className={os === o ? "pick" : ""} onClick={() => setOs(o)}>{o === "ios" ? "iPhone (iOS)" : "Android"}</button>
-        ))}
-      </div>
-      <ol>{info.steps.map((st) => <li key={st}>{st}</li>)}</ol>
-      <p className="note">{info.note}</p>
+    <section className="install-guide">
+      <button className="install-head" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="install-body">
+        <span>
+          <b id="install-title">Get {APP} on your phone</b>
+          <span className="install-sub">Access {APP} from your home screen</span>
+        </span>
+        <svg className="install-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div id="install-body" className="install-body">
+          <div className="install-os" role="group" aria-label="Your phone">
+            {(["ios", "android"] as const).map((o) => (
+              <button key={o} aria-pressed={os === o} className={os === o ? "pick" : ""} onClick={() => setOs(os === o ? null : o)}>{o === "ios" ? "iPhone (iOS)" : "Android"}</button>
+            ))}
+          </div>
+          {os && <ol>{STEPS[os].steps.map((st) => <li key={st}>{st}</li>)}</ol>}
+        </div>
+      )}
     </section>
   );
 }

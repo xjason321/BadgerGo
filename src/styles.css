@@ -640,12 +640,15 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 }
 
 /* ---------- "Add to home screen" steps (top of the info page) ---------- */
-.install-guide { margin: 6px 0 4px; padding: 14px 14px 12px; border-radius: 14px; background: #ffffff14; display: grid; gap: 10px; }
-.install-guide h3 { margin: 0; }
-.install-guide p { margin: 0; font-size: 13.5px; color: #ffffffcc; }
-.install-guide p.note { font-size: 12.5px; color: #ffffff99; }
-.install-guide ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
-.install-guide ol li::marker { color: var(--lime); font-weight: 800; }
+.install-guide { margin: 6px 0 4px; border-radius: 14px; background: #ffffff14; overflow: hidden; }
+.install-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border: 0; background: none; color: #fff; text-align: left; cursor: pointer; font: inherit; }
+.install-head b { display: block; font-size: 14.5px; font-weight: 800; }
+.install-sub { display: block; font-size: 13px; color: #ffffffb3; margin-top: 2px; }
+.install-chev { flex: none; color: var(--lime); transition: transform .18s ease; }
+.install-head[aria-expanded="true"] .install-chev { transform: rotate(180deg); }
+.install-body { display: grid; gap: 12px; padding: 0 14px 14px; }
+.install-body ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13.5px; }
+.install-body ol li::marker { color: var(--lime); font-weight: 800; }
 .install-os { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .install-os button { min-height: 40px; border: 0; border-radius: 12px; background: #ffffff1f; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer; }
 .install-os button.pick { background: #b8f23a22; box-shadow: inset 0 0 0 2px var(--lime); color: var(--lime); }

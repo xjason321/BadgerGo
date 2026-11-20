@@ -862,20 +862,20 @@ export function App() {
               <div className="adv-body">
           <section className="card">
             <h2>Starting with a bike</h2>
-            <label className="check">
+            <label className="check bike-row">
               <input type="checkbox" checked={haveBike} onChange={(e) => setHaveBike(e.target.checked)} />
-              <span>I'm already on a BCycle</span>
+              <span>
+                I'm already on a BCycle
+                {haveBike && (
+                  <>
+                    {" with "}
+                    <input className="left-input" type="number" inputMode="numeric" min={0} max={STUDENT_PLAN.freeMinutes} step={1} value={leftText} aria-label="Free minutes left on your bike"
+                      onChange={(e) => setLeftText(e.target.value)} onBlur={() => setLeftText(String(minutesLeft))} onFocus={(e) => e.target.select()} />
+                    {" minutes left"}
+                  </>
+                )}
+              </span>
             </label>
-            {haveBike && (
-              <>
-                <label className="left-row">
-                  <span>with</span>
-                  <input type="number" inputMode="numeric" min={0} max={STUDENT_PLAN.freeMinutes} step={1} value={leftText} aria-label="Free minutes left on your bike"
-                    onChange={(e) => setLeftText(e.target.value)} onBlur={() => setLeftText(String(minutesLeft))} onFocus={(e) => e.target.select()} />
-                  <span>minutes left</span>
-                </label>
-              </>
-            )}
           </section>
 
           <section className="card">

@@ -786,7 +786,7 @@ a.start-fab { text-decoration: none; }
 
 /* On phones the add-to-home-screen tip also lives top-left: sit it just under the weather chip */
 @media (max-width: 899px) { .install-tip { top: calc(52px + env(safe-area-inset-top)); } }
-
-.left-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; font-weight: 600; }
-.left-row input { width: 72px; padding: 8px 10px; border-radius: 10px; border: 1.5px solid var(--line, rgba(127,127,127,.4)); background: var(--card); color: var(--ink); font: inherit; font-weight: 700; text-align: center; }
-.left-row input:focus-visible { outline: 2px solid var(--g700); outline-offset: 1px; }
+.bike-row { align-items: center; }
+.bike-row > span { line-height: 2.1; }
+.check .left-input { width: 56px; padding: 5px 6px; border-radius: 10px; border: 1.5px solid var(--line, rgba(127,127,127,.4)); background: var(--card); color: var(--ink); font: inherit; font-weight: 700; text-align: center; vertical-align: middle; margin: 0 1px; height: auto; flex: none; }
+.check .left-input:focus-visible { outline: 2px solid var(--g700); outline-offset: 1px; }

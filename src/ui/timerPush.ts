@@ -21,8 +21,11 @@ async function registration(): Promise<ServiceWorkerRegistration | null> {
   try { return (await navigator.serviceWorker?.getRegistration()) ?? null; } catch { return null; }
 }
 
+/** The dock the rider is heading for, and how many open docks it had just now (the server warns when that falls from safe to risky). */
+export interface PushDock { id: string; name: string; docks: number }
+
 /** True when the server will push this ride's notifications. Safe to call again for the same ride (after a reload). */
-export async function startPush(startedAt: number): Promise<boolean> {
+export async function startPush(startedAt: number, endDock?: PushDock): Promise<boolean> {
   try {
     const reg = await registration();
     if (!reg?.pushManager) return false;
@@ -39,7 +42,7 @@ export async function startPush(startedAt: number): Promise<boolean> {
       await sub?.unsubscribe().catch(() => {});
       sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key as BufferSource });
     }
-    return (await post("/api/timer", { subscription: sub.toJSON(), startedAt })).ok;
+    return (await post("/api/timer", { subscription: sub.toJSON(), startedAt, ...(endDock ? { endDock } : {}) })).ok;
   } catch { return false; }
 }
 

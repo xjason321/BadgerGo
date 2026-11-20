@@ -2,7 +2,7 @@
 // anonymous report, GET /api/analytics gives the dashboard's numbers. The site itself is static and is not served here.
 import { USAGE } from "../src/core/usageConfig";
 import type { StatsResponse, UsageRequest } from "../src/core/usageTypes";
-import { AppError, readJsonBody, reportDays, timerStartRequest, timerStopRequest, usageRequest } from "./validate";
+import { AppError, readJsonBody, reportDays, timerStartRequest, timerStopRequest, usageRequest, type EndDockRequest } from "./validate";
 import type { PushSub } from "./webpush";
 
 /** The Usage Durable Object's methods. */
@@ -13,7 +13,7 @@ export interface UsageRpc {
 
 /** The Timers Durable Objects, found by the phone's push address. */
 export interface TimersRpc {
-  start(sub: PushSub, startedAt: number): Promise<void>;
+  start(sub: PushSub, startedAt: number, endDock?: EndDockRequest): Promise<void>;
   stop(endpoint: string): Promise<void>;
 }
 
@@ -84,8 +84,8 @@ export async function handle(request: Request, deps: Deps): Promise<Response> {
       await limit(deps, request);
       const body = await readJsonBody(request, 4096);
       if (url.pathname === "/api/timer") {
-        const { subscription, startedAt } = timerStartRequest(body, deps.now());
-        await deps.timers.start(subscription, startedAt);
+        const { subscription, startedAt, endDock } = timerStartRequest(body, deps.now());
+        await deps.timers.start(subscription, startedAt, endDock);
       } else {
         await deps.timers.stop(timerStopRequest(body).endpoint);
       }

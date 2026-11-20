@@ -18,7 +18,12 @@ const minsLeft = (s: TimerState) => Math.max(1, Math.ceil(s.remainingSec / 60));
  * The notification for an alert, or null when it's too late to be useful (the timer only noticed
  * the moment passed after the phone woke up). Nothing here touches the browser.
  */
-export function alertNote(alert: TimerAlert, s: TimerState, plan: PricingPlan = STUDENT_PLAN): NoteContent | null {
+export function alertNote(alert: TimerAlert, s: TimerState, plan: PricingPlan = STUDENT_PLAN, dockLine?: string): NoteContent | null {
+  const note = baseAlert(alert, s, plan);
+  return note && dockLine ? { ...note, body: `${note.body} ${dockLine}.` } : note;
+}
+
+function baseAlert(alert: TimerAlert, s: TimerState, plan: PricingPlan): NoteContent | null {
   const free = plan.freeMinutes * 60;
   const block = plan.blockMinutes * 60;
   const charge = `$${plan.blockCost}`;
@@ -44,12 +49,12 @@ export function alertNote(alert: TimerAlert, s: TimerState, plan: PricingPlan = 
 }
 
 /** The always-current notification while the app is in the background: minutes left, or how far over. */
-export function liveNote(s: TimerState, plan: PricingPlan = STUDENT_PLAN): NoteContent {
+export function liveNote(s: TimerState, plan: PricingPlan = STUDENT_PLAN, dockLine?: string): NoteContent {
   if (s.phase === "over") {
     const over = Math.max(1, Math.ceil(-s.remainingSec / 60));
-    return { tag: LIVE_TAG, title: `Over the free time by ${over} min`, body: `$${s.cost} so far. Dock now. Updates every minute.` };
+    return { tag: LIVE_TAG, title: `Over the free time by ${over} min`, body: dockLine ? `${dockLine}. $${s.cost} so far. Dock now.` : `$${s.cost} so far. Dock now. Updates every minute.` };
   }
-  return { tag: LIVE_TAG, title: `${minsLeft(s)} min left free`, body: `Dock before it runs out to avoid the $${plan.blockCost} charge. Updates every minute.` };
+  return { tag: LIVE_TAG, title: `${minsLeft(s)} min left free`, body: dockLine ? `${dockLine}. Dock before it runs out to avoid the $${plan.blockCost} charge.` : `Dock before it runs out to avoid the $${plan.blockCost} charge. Updates every minute.` };
 }
 
 /** Changes when the live notification's text would change (once a minute). */

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { crossed, timerState, type TimerAlert, type TimerState } from "../core/bikeTimer";
 import { readTimer, writeTimer } from "../core/bikeTimerStore";
+import { dockLine } from "../core/endDock";
 import { alertNote, liveKey, liveNote, ALERT_TAG, LIVE_TAG } from "../core/timerNotify";
 import { beep, primeAudio, speak, vibrate } from "./feedback";
 import { askNotifyPermission, closeNote, notifyState, showNote, type NotifyState } from "./notify";
@@ -14,8 +15,14 @@ const SAY: Record<TimerAlert, string> = {
   block: "Another charge just started. Dock your bike.",
 };
 
-/** The rider's bike timer: started when they unlock, stopped when they dock. */
-export function useBikeTimer() {
+/** The dock the rider is heading for, with what it has free right now (from the live station data). */
+export interface EndDockLive { id: string; name: string; bikes: number; docks: number }
+
+/** The rider's bike timer: started when they unlock, stopped when they dock. `end` is the dock the current ride ends at, if known: its open docks and bikes go in the notifications. */
+export function useBikeTimer(end: EndDockLive | null = null) {
+  const endRef = useRef(end);
+  endRef.current = end;
+  const endLine = () => (endRef.current ? dockLine(endRef.current.name, endRef.current) : undefined);
   const [startedAt, setStartedAt] = useState<number | null>(() => readTimer());
   const [now, setNow] = useState(() => Date.now());
   const [alert, setAlert] = useState<TimerAlert | null>(null);
@@ -58,7 +65,7 @@ export function useBikeTimer() {
     beep(a === "early" ? 1 : soft ? 2 : 3, soft ? 880 : 660);
     speak(SAY[a]);
     // The same alert as a notification: it reaches the rider in another app, and waits in the tray otherwise. Quiet while the app is open (the beep and voice above already did the job).
-    const note = pushedRef.current ? null : alertNote(a, state); // pushed rides get the alert from the server
+    const note = pushedRef.current ? null : alertNote(a, state, undefined, endLine()); // pushed rides get the alert from the server
     if (note) void showNote(note, { silent: document.visibilityState === "visible" });
   }, [state?.elapsedSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -66,9 +73,11 @@ export function useBikeTimer() {
   useEffect(() => {
     if (!running || notify !== "on" || startedAt == null) { setPushed(false); return; }
     let current = true;
-    void startPush(startedAt).then((ok) => { if (current) setPushed(ok); });
+    const e = endRef.current;
+    // Registering again when the end dock becomes known or changes is fine: the server keeps the ride and just learns the dock.
+    void startPush(startedAt, e ? { id: e.id, name: e.name, docks: e.docks } : undefined).then((ok) => { if (current) setPushed(ok); });
     return () => { current = false; };
-  }, [startedAt, running, notify]);
+  }, [startedAt, running, notify, end?.id, end?.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Ask for notification permission (from a tap); counts when alerts get turned on. */
   const askNotify = useCallback(() => {
@@ -99,7 +108,7 @@ export function useBikeTimer() {
   const key = state ? liveKey(state) : null;
   useEffect(() => {
     if (!state || !hidden || notify !== "on") { void closeNote(LIVE_TAG); return; }
-    if (!pushed) void showNote(liveNote(state), { silent: true }); // pushed rides get it from the server
+    if (!pushed) void showNote(liveNote(state, undefined, endLine()), { silent: true }); // pushed rides get it from the server
   }, [key, hidden, notify, pushed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { running: startedAt != null, state, alert, start, stop, notify, enableNotify };

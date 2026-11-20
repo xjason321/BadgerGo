@@ -109,9 +109,9 @@ const sub = (): PushSub => ({
   keys: { p256dh: b64uEncode(Uint8Array.from([4, ...Array.from({ length: 64 }, (_, i) => i)])), auth: b64uEncode(new Uint8Array(16).fill(7)) },
 });
 function timerSetup(over: Partial<Deps> = {}) {
-  const started: { sub: PushSub; startedAt: number }[] = [];
+  const started: { sub: PushSub; startedAt: number; endDock?: unknown }[] = [];
   const stopped: string[] = [];
-  const t = setup({ now: () => NOW, publicKey: "PUBKEY", timers: { start: async (s, startedAt) => { started.push({ sub: s, startedAt }); }, stop: async (e) => { stopped.push(e); } }, ...over });
+  const t = setup({ now: () => NOW, publicKey: "PUBKEY", timers: { start: async (s, startedAt, endDock) => { started.push({ sub: s, startedAt, endDock }); }, stop: async (e) => { stopped.push(e); } }, ...over });
   return { ...t, started, stopped };
 }
 const timerReq = (path: string, body: unknown, init: { origin?: string | null; method?: string } = {}) =>
@@ -174,6 +174,33 @@ describe("POST /api/timer", () => {
   it("refuses a big body", async () => {
     const t = timerSetup();
     expect((await handle(timerReq("/api/timer", "x".repeat(5000)), t.deps)).status).toBe(413);
+  });
+});
+
+describe("POST /api/timer with the end dock", () => {
+  const dock = { id: "bcycle_madison_2148", name: "Capitol Square", docks: 4 };
+  it("passes on the dock the ride is heading for", async () => {
+    const t = timerSetup();
+    const r = await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW, endDock: dock }), t.deps);
+    expect(r.status).toBe(200);
+    expect(t.started[0]!.endDock).toEqual(dock);
+  });
+  it("the dock is optional, and so is its number", async () => {
+    const t = timerSetup();
+    expect((await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW }), t.deps)).status).toBe(200);
+    expect((await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW, endDock: { id: dock.id, name: dock.name } }), t.deps)).status).toBe(200);
+    expect(t.started[1]!.endDock).toEqual({ id: dock.id, name: dock.name });
+  });
+  it("cleans the name and refuses anything odd", async () => {
+    const t = timerSetup();
+    await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW, endDock: { ...dock, name: "  Capitol\nSquare " + "x".repeat(200) } }), t.deps);
+    const name = (t.started[0]!.endDock as { name: string }).name;
+    expect(name.startsWith("Capitol Square")).toBe(true);
+    expect(name.length).toBeLessThanOrEqual(80);
+    for (const endDock of [5, "d", [], { id: "", name: "x" }, { id: "a b", name: "x" }, { id: "x".repeat(61), name: "x" }, { id: "../etc", name: "x" }, { id: "d", name: 5 }, { id: "d", name: "   " }, { id: "d", name: "x", docks: -1 }, { id: "d", name: "x", docks: 1.5 }, { id: "d", name: "x", docks: "4" }, { id: "d", name: "x", docks: 1000 }]) {
+      expect((await handle(timerReq("/api/timer", { subscription: sub(), startedAt: NOW, endDock }), t.deps)).status, JSON.stringify(endDock)).toBe(400);
+    }
+    expect(t.started).toHaveLength(1);
   });
 });
 

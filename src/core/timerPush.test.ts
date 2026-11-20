@@ -47,3 +47,16 @@ describe("what a push says", () => {
     expect(pushFor(started, started + min(25) + TICK_OFFSET_MS)).toMatchObject({ alert: true, title: "5 min left on your free ride" });
   });
 });
+
+describe("pushes with the dock the rider is heading for", () => {
+  const at = (m: number) => T0 + min(m) + TICK_OFFSET_MS;
+  const dock = { name: "Capitol Square", counts: { bikes: 7, docks: 5 } };
+  it("the countdown and the alerts say how many docks and bikes are left", () => {
+    expect(pushFor(T0, at(3), dock)).toMatchObject({ alert: false, body: "Capitol Square: 5 open docks, 7 bikes. Dock before it runs out to avoid the $8 charge." });
+    expect(pushFor(T0, at(25), dock)).toMatchObject({ alert: true, body: expect.stringContaining("Capitol Square: 5 open docks, 7 bikes") });
+  });
+  it("is the same as before without a dock", () => {
+    expect(pushFor(T0, at(3))).toEqual(pushFor(T0, at(3), undefined));
+    expect(pushFor(T0, at(3)).body).not.toContain("open dock");
+  });
+});

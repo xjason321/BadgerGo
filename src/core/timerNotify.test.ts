@@ -53,3 +53,22 @@ describe("live notification", () => {
     expect(liveKey(at(31))).toBeLessThan(0);
   });
 });
+
+describe("with the dock the rider is heading for", () => {
+  const line = "Capitol Square: 3 open docks, 7 bikes";
+  it("the countdown says how many docks and bikes are left there", () => {
+    const n = liveNote(at(12), undefined, line);
+    expect(n.title).toBe("18 min left free");
+    expect(n.body).toBe(`${line}. Dock before it runs out to avoid the $8 charge.`);
+    expect(liveNote(at(34), undefined, line).body).toBe(`${line}. $8 so far. Dock now.`);
+  });
+  it("so does each alert, after what it already says", () => {
+    expect(alertNote("warn", at(25), undefined, line)!.body).toBe(`Dock within 5 min to avoid the $8 charge. ${line}.`);
+    expect(alertNote("limit", at(30), undefined, line)!.body).toContain(line);
+  });
+  it("without a dock they read as before", () => {
+    expect(liveNote(at(12)).body).toMatch(/Updates every minute/);
+    expect(alertNote("warn", at(25))!.body).not.toContain("open dock");
+    expect(alertNote("early", at(24), undefined, line)).toBeNull(); // a stale alert is still dropped
+  });
+});

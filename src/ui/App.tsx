@@ -27,6 +27,7 @@ import { addRecent, readPlaces, rememberable, toStored, writePlaces, type Places
 import { DockMenu } from "./DockMenu";
 import { PencilIcon, ShareIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
+import { countsOf } from "../core/endDock";
 import { useBikeTimer } from "./useBikeTimer";
 import { countUse, useUsageCounts } from "./usage";
 import { editChain, type DockAction } from "../core/dockActions";
@@ -627,7 +628,14 @@ export function App() {
     return () => clearInterval(t);
   }, [ride.active]);
 
-  const timer = useBikeTimer();
+  // The dock the current ride ends at: its open docks and bikes go in the timer's notifications.
+  const endDock = useMemo(() => {
+    if (!ride.active) return null;
+    const leg = ride.legs.slice(ride.index).find((l) => l.kind === "ride" && l.dockId);
+    const st = leg?.dockId ? stations.find((x) => x.id === leg.dockId) : undefined;
+    return st ? { id: st.id, name: st.name, ...countsOf(st) } : null;
+  }, [ride.active, ride.legs, ride.index, stations]);
+  const timer = useBikeTimer(endDock);
   useUsageCounts();
   const [cues, setCues] = useState(() => readCues());
   useRideCues(cues, ride.active, ride.legs, ride.index);

@@ -37,6 +37,11 @@ describe("starting pushes", () => {
     expect(p.subscribed).toEqual([{ userVisibleOnly: true, applicationServerKey: keyBytes(KEY) }]);
     expect(p.calls.at(-1)).toEqual({ url: "/api/timer", body: { subscription: SUB, startedAt: 1234 } });
   });
+  it("tells the server which dock the ride is heading for, and how many open docks it has now", async () => {
+    const p = phone();
+    await startPush(1234, { id: "d1", name: "Capitol Square", docks: 4 });
+    expect(p.calls.at(-1)).toEqual({ url: "/api/timer", body: { subscription: SUB, startedAt: 1234, endDock: { id: "d1", name: "Capitol Square", docks: 4 } } });
+  });
   it("reuses the phone's subscription for the next ride, or after a reload", async () => {
     const p = phone({ existing: true });
     expect(await startPush(1234)).toBe(true);

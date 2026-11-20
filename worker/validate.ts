@@ -99,12 +99,27 @@ function pushSubscription(v: unknown): PushSub {
   return { endpoint: pushEndpoint(v.endpoint), keys: { p256dh: pushKey(v.keys.p256dh, 65, 4), auth: pushKey(v.keys.auth, 16) } };
 }
 
+export interface EndDockRequest { id: string; name: string; /** How many docks it had when the ride started (the baseline for the "getting risky" warning). */ docks?: number }
+
+/** The dock the rider is heading for: a station id from BCycle's feed and its name (shown in the notification). */
+function endDockRequest(v: unknown): EndDockRequest | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (!isObj(v)) throw bad("Invalid dock");
+  const { id, name, docks } = v;
+  if (typeof id !== "string" || !/^[A-Za-z0-9_.:-]{1,60}$/.test(id) || typeof name !== "string") throw bad("Invalid dock");
+  const clean = name.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 80);
+  if (!clean) throw bad("Invalid dock");
+  if (docks !== undefined && !(typeof docks === "number" && Number.isInteger(docks) && docks >= 0 && docks <= 999)) throw bad("Invalid dock");
+  return { id, name: clean, ...(docks === undefined ? {} : { docks }) };
+}
+
 /** POST /api/timer: a ride started at `startedAt` (ms), to be pushed to `subscription`. */
-export function timerStartRequest(body: unknown, now: number): { subscription: PushSub; startedAt: number } {
+export function timerStartRequest(body: unknown, now: number): { subscription: PushSub; startedAt: number; endDock?: EndDockRequest } {
   if (!isObj(body)) throw bad("Invalid body");
   const { startedAt } = body;
   if (typeof startedAt !== "number" || !Number.isInteger(startedAt) || startedAt < now - MAX_RIDE_MS || startedAt > now + 5 * 60_000) throw bad("Invalid start");
-  return { subscription: pushSubscription(body.subscription), startedAt };
+  const endDock = endDockRequest(body.endDock);
+  return { subscription: pushSubscription(body.subscription), startedAt, ...(endDock ? { endDock } : {}) };
 }
 
 /** POST /api/timer/stop */

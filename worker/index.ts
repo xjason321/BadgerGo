@@ -29,7 +29,7 @@ export default {
       publicKey: pushOn ? env.VAPID_PUBLIC_KEY : undefined,
       timers: pushOn
         ? {
-            start: async (sub, startedAt) => env.TIMERS.get(await timerId(env, sub.endpoint)).start(sub, startedAt),
+            start: async (sub, startedAt, endDock) => env.TIMERS.get(await timerId(env, sub.endpoint)).start(sub, startedAt, endDock),
             stop: async (endpoint) => env.TIMERS.get(await timerId(env, endpoint)).stop(),
           }
         : undefined,

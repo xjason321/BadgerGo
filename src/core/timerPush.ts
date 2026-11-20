@@ -2,6 +2,7 @@
 // current in the background (the phone freezes it after about a minute), so the Worker sends one push a minute
 // and the phone's service worker shows it. Pure, so the client and the Worker agree.
 import { crossed, timerState } from "./bikeTimer";
+import { dockLine, type DockCounts } from "./endDock";
 import { alertNote, liveNote, type NoteContent } from "./timerNotify";
 
 /** A push goes out this long after each whole minute of the ride (so the minute label has changed by then). */
@@ -20,10 +21,11 @@ export function nextPushAt(startedAt: number, now: number): number {
   return startedAt + n * 60_000 + TICK_OFFSET_MS;
 }
 
-/** What to push at `at` (a push moment): the alert that moment is, else the countdown. */
-export function pushFor(startedAt: number, at: number): PushNote {
+/** What to push at `at` (a push moment): the alert that moment is, else the countdown. `dock` adds how many docks and bikes are left where the rider is heading. */
+export function pushFor(startedAt: number, at: number, dock?: { name: string; counts: DockCounts }): PushNote {
   const s = timerState(startedAt, at);
+  const line = dock ? dockLine(dock.name, dock.counts) : undefined;
   const alert = crossed(Math.max(0, s.elapsedSec - 60), s.elapsedSec);
-  const note = alert ? alertNote(alert, s) : null;
-  return note ? { ...note, alert: true } : { ...liveNote(s), alert: false };
+  const note = alert ? alertNote(alert, s, undefined, line) : null;
+  return note ? { ...note, alert: true } : { ...liveNote(s, undefined, line), alert: false };
 }

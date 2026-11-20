@@ -864,15 +864,15 @@ export function App() {
             <h2>Starting with a bike</h2>
             <label className="check bike-row">
               <input type="checkbox" checked={haveBike} onChange={(e) => setHaveBike(e.target.checked)} />
-              <span>
-                I'm already on a bike{haveBike ? "." : ""}
+              <span className="bike-text">
+                <span className="nw">I'm already on a bike{haveBike ? "." : ""}</span>
                 {haveBike && (
-                  <>
+                  <span className="nw">
                     {" Dock within "}
                     <input className="left-input" type="number" inputMode="numeric" min={0} max={STUDENT_PLAN.freeMinutes} step={1} value={leftText} aria-label="Free minutes left on your bike"
                       onChange={(e) => setLeftText(e.target.value)} onBlur={() => setLeftText(String(minutesLeft))} onFocus={(e) => e.target.select()} />
                     {" mins to stay free"}
-                  </>
+                  </span>
                 )}
               </span>
             </label>

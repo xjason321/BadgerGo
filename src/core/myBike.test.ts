@@ -104,6 +104,19 @@ describe("starting with a bike", () => {
       expect(swapped).toBeTruthy();
       expect(swapped!.rides[0].durationMin).toBeLessThanOrEqual(25);
     });
+    it("looks for swap docks within the minutes left, not out at the comfort limit", async () => {
+      const far = { lat: 43.1, lon: -89.0 };
+      // One dock close by, and a crowd of docks ~20+ minutes out (where a 30-minute search would look).
+      const crowd = [0.04, 0.042, 0.044, 0.046, 0.048, 0.05, 0.052, 0.054].map((d, i) => st(`c${i}`, 43 + d, -89.0));
+      const near = st("near", 43.01, -89.0);
+      const end = st("end", 43.0999, -89.0);
+      const mid = st("mid", 43.06, -89.0);
+      const plans = await planRoutes(origin, far, [near, ...crowd, mid, end], fake, { maxRideMinutes: 30, startWithBike: true, startMinutesLeft: 12 });
+      const best = plans[0];
+      expect(best.stations.map((x) => x.id)).toContain("near");
+      expect(best.rides[0].durationMin).toBeLessThanOrEqual(12);
+      expect(best.overageCost).toBe(0);
+    });
     it("defaults to all the free minutes and doesn't change normal plans", async () => {
       const [p] = await planRoutes(origin, dest, stations, fake, { ...opts });
       expect(p.startMinutesLeft).toBe(30);

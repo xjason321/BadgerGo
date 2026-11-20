@@ -223,7 +223,8 @@ export async function planRoutes(
   const timesFrom = (dock: Station) => {
     let p = rowCache.get(dock.id);
     if (!p) {
-      const stops = nextStops(dock, destination, stations, limit, fanout);
+      // Already on a bike: where the free minutes run out is where to look for the first stop.
+      const stops = nextStops(dock, destination, stations, limitFor(isMyBike(dock)), fanout);
       const targets = [...stops, ...ends.filter((e) => e.id !== dock.id && !stops.some((s) => s.id === e.id))];
       p = provider.row(dock, targets).then((row) => {
         const out = new Map<string, number>();
@@ -335,7 +336,7 @@ export async function planRoutes(
         const legs: number[] = [];
         for (let i = 1; i < ids.length; i++) {
           const t = T[ids[i - 1]][ids[i]];
-          if (t == null || t > limit) return;
+          if (t == null || t > limitFor(i === 1)) return;
           legs.push(t);
         }
         const path = ids.map((i) => nodes[i]);

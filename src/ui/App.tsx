@@ -865,13 +865,13 @@ export function App() {
             <label className="check bike-row">
               <input type="checkbox" checked={haveBike} onChange={(e) => setHaveBike(e.target.checked)} />
               <span>
-                I'm already on a BCycle
+                I'm already on a bike
                 {haveBike && (
                   <>
                     {" with "}
                     <input className="left-input" type="number" inputMode="numeric" min={0} max={STUDENT_PLAN.freeMinutes} step={1} value={leftText} aria-label="Free minutes left on your bike"
                       onChange={(e) => setLeftText(e.target.value)} onBlur={() => setLeftText(String(minutesLeft))} onFocus={(e) => e.target.select()} />
-                    {" minutes left"}
+                    {" mins left"}
                   </>
                 )}
               </span>

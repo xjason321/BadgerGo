@@ -874,7 +874,6 @@ export function App() {
                     onChange={(e) => setLeftText(e.target.value)} onBlur={() => setLeftText(String(minutesLeft))} onFocus={(e) => e.target.select()} />
                   <span>minutes left</span>
                 </label>
-                <p className="muted">Routes start from where you are, with no pick-up dock. Your first ride is free for {minutesLeft} more min; after your first dock you get a fresh bike.</p>
               </>
             )}
           </section>

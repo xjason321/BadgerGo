@@ -20,7 +20,9 @@ export async function geocode(
   const res = await f(`https://nominatim.openstreetmap.org/search?${p}`);
   if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
   const rows: { lat: string; lon: string; display_name: string }[] = await res.json();
-  return rows.map((r) => ({ lat: +r.lat, lon: +r.lon, label: r.display_name }));
+  return (Array.isArray(rows) ? rows : [])
+    .map((r) => ({ lat: +r.lat, lon: +r.lon, label: String(r.display_name ?? "") }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon) && p.label);
 }
 
 /** Nominatim reverse lookup: a short address for a point, or null. */
@@ -72,7 +74,8 @@ export async function suggestPlaces(
       const street = [pr.housenumber, pr.street].filter(Boolean).join(" ");
       const name = pr.name || street;
       const address = [pr.name ? street : "", pr.city || pr.county].filter(Boolean).join(", ");
-      return { name: name ?? "", address, lat: ft.geometry.coordinates[1], lon: ft.geometry.coordinates[0] };
+      const [lon, lat] = ft.geometry?.coordinates ?? [];
+      return { name: name ?? "", address, lat, lon };
     })
-    .filter((x) => x.name);
+    .filter((x) => x.name && Number.isFinite(x.lat) && Number.isFinite(x.lon));
 }

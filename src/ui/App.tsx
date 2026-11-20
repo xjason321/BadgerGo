@@ -169,7 +169,13 @@ export function App() {
     JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, haveBike, haveBike ? firstLeft : 0, prefs]);
   const [doneSig, setDoneSig] = useState("");
   useEffect(() => { if (strip.current) strip.current.scrollLeft = 0; }, [plans]);
-  const goBack = () => { setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
+  // Every route search (and anything that throws its results away) takes a new number. A search that finishes after a
+  // newer one started is stale: it must not put its routes, status or busy flag on screen.
+  const searchGen = useRef(0);
+  const newSearch = () => { const g = ++searchGen.current; return () => g !== searchGen.current; };
+  /** Drop whatever search is running (its results would be for something the rider has left). */
+  const cancelSearch = () => { newSearch(); setBusy(false); };
+  const goBack = () => { cancelSearch(); setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
   // On phones the route cards sit in a sideways, snapping strip: swiping to a card selects it, tapping a card scrolls it into view.
   const strip = useRef<HTMLUListElement>(null);
   const cardAt = (i: number) => strip.current?.children[i] as HTMLElement | undefined;
@@ -472,14 +478,16 @@ export function App() {
   };
 
   /** A start/end marker was dragged (desktop). Move it, then fill in a nicer name when the lookup returns. */
+  const moveReq = useRef({ origin: 0, destination: 0 });
   const onMovePoint = async (t: Target, lat: number, lon: number) => {
+    const id = ++moveReq.current[t];
     place(t, lat, lon);
     const moved: Place = { lat, lon, label: `${lat.toFixed(5)}, ${lon.toFixed(5)}` };
     const other = t === "origin" ? destination : origin;
     if (other) go(t === "origin" ? moved : other, t === "origin" ? other : moved); // both ends set: re-run Find routes
     else setStatus(`${t === "origin" ? "Start" : "End"} moved.`);
     const name = await reverseGeocode(lat, lon).catch(() => null);
-    if (name) place(t, lat, lon, name);
+    if (name && id === moveReq.current[t]) place(t, lat, lon, name); // dragged again meanwhile: this name is for the old spot
   };
 
   const onLongPress = (lat: number, lon: number) => {
@@ -492,6 +500,7 @@ export function App() {
   const go = async (from: Place | null = origin, to: Place | null = destination) => {
     if (!from || !to) return;
     const [origin, destination] = [from, to]; // an explicit pair wins over state that hasn't updated yet
+    const stale = newSearch();
     setBusy(true); setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus("Finding routes…");
     updateMine((m) => [from, to].filter(rememberable).reduce((acc, pl) => addRecent(acc, toStored(pl)), m));
     const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
@@ -511,6 +520,7 @@ export function App() {
           refineRide: prefs.strict && prefs.traffic < KINDS.length - 1 ? strictRefiner(provider, prefs.traffic) : undefined,
         });
       } catch (e) { planError = e as Error; }
+      if (stale()) return;
       setStatus("Checking road types…");
       // Road types for every route (they decide the ranking and color the map). Best effort.
       const withRoads = await Promise.all(
@@ -520,6 +530,7 @@ export function App() {
       );
       const bikeRanked = rankPlans(withRoads, prefs.traffic);
       const walkPlan = await walking;
+      if (stale()) return;
       if (!bikeRanked.length && !walkPlan) throw planError ?? new Error("No routes found");
       // Walking goes first (as "Recommended") when it's at least as fast as the best bike route; otherwise it's the last option.
       const walkFirst = !!walkPlan && (!bikeRanked.length || walkPlan.totalMinutes <= bikeRanked[0].totalMinutes);
@@ -540,7 +551,7 @@ export function App() {
               ? `${ok} of ${bikeRanked.length} bike routes keep every ride within ${limit} min.`
               : `No bike route keeps every ride within ${limit} min${swapsOn ? "" : " (try enabling swaps)"}; showing the cheapest.`) + (walkFirst ? "" : walkNote),
       );
-    } catch (e) { setStatus((e as Error).message); } finally { setBusy(false); }
+    } catch (e) { if (!stale()) setStatus((e as Error).message); } finally { if (!stale()) setBusy(false); }
   };
 
   // ---- Sharing: send the exact route as a link; opening one shows just that route ----
@@ -551,6 +562,7 @@ export function App() {
   const openedShare = useRef(false);
   const openShared = async (r: SharedRoute) => {
     const provider = new FallbackProvider(new ValhallaProvider(r.prefs), new OsrmProvider());
+    const stale = newSearch();
     setOrigin(r.origin); setDestination(r.destination);
     setText({ origin: r.origin.label, destination: r.destination.label });
     setPrefs(r.prefs); setSwapsOn(r.swapsOn); setMaxRide(r.maxRide);
@@ -564,7 +576,7 @@ export function App() {
         np = walkOnlyPlan(w);
       } else {
         const docks = chainFromIds(r.stationIds, stations);
-        if (!docks) { setStatus("A dock on that shared route isn't available any more. Search this trip to get fresh routes."); return; }
+        if (!docks) { if (!stale()) setStatus("A dock on that shared route isn't available any more. Search this trip to get fresh routes."); return; }
         const chain = r.bikeLeft != null ? [myBikeStation(r.origin), ...docks] : docks;
         const refine = r.prefs.strict && r.prefs.traffic < KINDS.length - 1 ? strictRefiner(provider, r.prefs.traffic) : undefined;
         np = await buildCustomPlan(r.origin, r.destination, chain, provider, { maxRideMinutes: r.swapsOn ? r.maxRide : STUDENT_PLAN.freeMinutes, startMinutesLeft: r.bikeLeft ?? undefined, refineRide: refine });
@@ -572,11 +584,12 @@ export function App() {
         np = { ...np, id: "shared", label: `Shared route · ${swaps <= 0 ? "Direct" : swaps === 1 ? "1 swap" : `${swaps} swaps`}` };
         try { np = { ...np, roads: await analyzePlan(np) }; } catch { /* road types are a bonus */ }
       }
+      if (stale()) return; // they searched for something else meanwhile
       setPlans([np]); setSelected(0); setDetail(0); setDoneSig(""); setStatus("");
       if (isPhone()) setSnap("half");
     } catch (e) {
-      setStatus(`Couldn't open that shared route (${(e as Error).message}). Search this trip to get routes.`);
-    } finally { setBusy(false); }
+      if (!stale()) setStatus(`Couldn't open that shared route (${(e as Error).message}). Search this trip to get routes.`);
+    } finally { if (!stale()) setBusy(false); }
   };
   useEffect(() => {
     if (!shared || openedShare.current) return;
@@ -640,6 +653,7 @@ export function App() {
   }, [ride.active, ride.index, plan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const resumeRide = () => {
     if (!resume) return;
+    cancelSearch();
     setOrigin(resume.origin); setDestination(resume.destination);
     setText({ origin: resume.origin.label, destination: resume.destination.label });
     setPlans([resume.plan]); setSelected(0); setDoneSig(sigOf(resume.origin, resume.destination));
@@ -657,20 +671,22 @@ export function App() {
   const chainIds = bikePlan && !startsOnBike(bikePlan) ? bikePlan.stations.map((s) => s.id) : null; // no dock editing when you start on your own bike
   const rebuildCustom = async (chain: Station[]) => {
     if (!origin || !destination) return;
+    const stale = newSearch();
     setBusy(true);
     setStatus("Updating your route…");
     try {
       const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
       let np = await buildCustomPlan(origin, destination, chain, provider, { maxRideMinutes: swapsOn ? maxRide : STUDENT_PLAN.freeMinutes, startMinutesLeft: firstLeft });
       try { np = { ...np, roads: await analyzePlan(np) }; } catch { /* road types are a bonus */ }
+      if (stale()) return;
       setPlans((prev) => [np, ...prev.filter((p) => p.id !== "custom")]);
       setSelected(0);
       setDetail(0);
       setStatus("");
     } catch (e) {
-      setStatus(`Couldn't build that route (${(e as Error).message}). Try different docks.`);
+      if (!stale()) setStatus(`Couldn't build that route (${(e as Error).message}). Try different docks.`);
     } finally {
-      setBusy(false);
+      if (!stale()) setBusy(false);
     }
   };
   const startEdit = (p: Plan) => {
@@ -830,6 +846,7 @@ export function App() {
                   <button
                     className="icon-btn clear-btn"
                     onClick={() => {
+                      cancelSearch(); // a search still running for the old end is dropped
                       setText((x) => ({ ...x, destination: "" }));
                       setDestination(null);
                       setPlans([]);

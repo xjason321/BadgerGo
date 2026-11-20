@@ -4,11 +4,12 @@ import swSource from "../../public/sw.js?raw";
 /** Load public/sw.js against an in-memory Cache API and a controllable network. */
 function worker() {
   const stores = new Map<string, Map<string, Response>>();
+  const disk = { full: false };
   const key = (r: Request | string) => (typeof r === "string" ? new URL(r, "https://badgergo.app").href : r.url);
   const open = async (n: string) => {
     if (!stores.has(n)) stores.set(n, new Map());
     const m = stores.get(n)!;
-    return { match: async (r: Request | string) => m.get(key(r))?.clone(), put: async (r: Request | string, v: Response) => { m.delete(key(r)); m.set(key(r), v); }, delete: async (r: string) => m.delete(key(r)), keys: async () => [...m.keys()].map((u) => new Request(u)) };
+    return { match: async (r: Request | string) => m.get(key(r))?.clone(), put: async (r: Request | string, v: Response) => { if (disk.full) throw new DOMException("quota", "QuotaExceededError"); m.delete(key(r)); m.set(key(r), v); }, delete: async (r: string) => m.delete(key(r)), keys: async () => [...m.keys()].map((u) => new Request(u)) };
   };
   const caches = { open, keys: async () => [...stores.keys()], delete: async (n: string) => stores.delete(n) };
   const net = { up: true, calls: [] as string[] };
@@ -36,7 +37,7 @@ function worker() {
     await work;
     return { closed };
   };
-  return { run, net, stores, tap, opened, focused, wins };
+  return { run, net, stores, tap, opened, focused, wins, disk };
 }
 const text = async (r: Response | null) => (r ? r.text() : null);
 
@@ -96,5 +97,31 @@ describe("notification taps", () => {
     await w.tap();
     expect(w.focused).toEqual([1]);
     expect(w.opened).toEqual([]);
+  });
+});
+
+const proc = (globalThis as unknown as { process: { on: (e: string, f: (x: unknown) => void) => void; off: (e: string, f: (x: unknown) => void) => void } }).process;
+
+describe("a full disk", () => {
+  it("still shows tiles, pages and scripts (saving the copy just fails quietly)", async () => {
+    const w = worker(); w.disk.full = true;
+    const unhandled: unknown[] = []; const on = (e: unknown) => unhandled.push(e);
+    proc.on("unhandledRejection", on);
+    try {
+      expect(await text(await w.run("https://tile.openstreetmap.org/15/1/1.png"))).toBe("net:https://tile.openstreetmap.org/15/1/1.png");
+      expect(await text(await w.run("https://badgergo.app/", { mode: "navigate" }))).toBe("net:https://badgergo.app/");
+      expect(await text(await w.run("https://badgergo.app/assets/a.js"))).toBe("net:https://badgergo.app/assets/a.js");
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toEqual([]);
+    } finally { proc.off("unhandledRejection", on); }
+  });
+  it("keeps the app's own files to a fixed number, but always the page", async () => {
+    const w = worker();
+    await w.run("https://badgergo.app/", { mode: "navigate" });
+    for (let i = 0; i < 90; i++) { await w.run(`https://badgergo.app/assets/f${i}.js`); await new Promise((r) => setTimeout(r, 0)); }
+    await new Promise((r) => setTimeout(r, 10));
+    const app = [...w.stores.entries()].find(([k]) => k.startsWith("badgergo-app"))![1];
+    expect(app.size).toBeLessThanOrEqual(81);
+    expect(app.has("https://badgergo.app/")).toBe(true);
   });
 });

@@ -36,6 +36,13 @@ const DOCK_RADIUS_M = 30;
 const REQUEST_TIMEOUT_MS = 10_000;
 /** Identical requests (same prefs, same points) are answered from memory, sparing the free server. */
 const responseCache = new Map<string, any>();
+/** Route answers carry whole geometries: keep the most recent ones only, so a long session doesn't keep growing. */
+const MAX_CACHED = 300;
+function remember(key: string, data: unknown) {
+  responseCache.delete(key);
+  responseCache.set(key, data);
+  while (responseCache.size > MAX_CACHED) responseCache.delete(responseCache.keys().next().value as string);
+}
 const cacheKey = (base: string, path: string, body: unknown) => `${base}${path}|${JSON.stringify(body)}`;
 
 export class ValhallaProvider implements RoutingProvider {
@@ -54,7 +61,7 @@ export class ValhallaProvider implements RoutingProvider {
     const key = cacheKey(this.baseUrl, path, body);
     if (responseCache.has(key)) return responseCache.get(key);
     const data = await this.fetchJson(path, body, retry);
-    responseCache.set(key, data);
+    remember(key, data);
     return data;
   }
 

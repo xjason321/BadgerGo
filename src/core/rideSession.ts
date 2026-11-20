@@ -10,6 +10,13 @@ export const MAX_AGE_MS = 3 * 3600_000;
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const def = (): Store | undefined => (typeof localStorage === "undefined" ? undefined : localStorage);
 
+const isLine = (g: unknown) => Array.isArray(g) && g.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+const isSeg = (s: unknown) => !!s && isLine((s as { geometry?: unknown }).geometry) && Number.isFinite((s as { durationMin?: unknown }).durationMin);
+const isStation = (s: unknown) => !!s && typeof (s as { id?: unknown }).id === "string" && typeof (s as { name?: unknown }).name === "string" && Number.isFinite((s as { lat?: unknown }).lat) && Number.isFinite((s as { lon?: unknown }).lon);
+/** Enough of a plan to ride it. A ride saved by an older version of the app may not have it, and must not crash ride mode. */
+const isPlan = (p: any): p is Plan =>
+  !!p && typeof p.id === "string" && Array.isArray(p.stations) && p.stations.every(isStation) && isSeg(p.walkToDock) && isSeg(p.walkFromDock) &&
+  Array.isArray(p.rides) && p.rides.every(isSeg) && (p.walkOnly ? true : p.rides.length === Math.max(0, p.stations.length - 1));
 const isPlace = (p: unknown): p is Place => !!p && Number.isFinite((p as Place).lat) && Number.isFinite((p as Place).lon) && typeof (p as Place).label === "string";
 
 /** Keep the plan lean: road-type analysis is large and not needed to ride. */
@@ -26,7 +33,7 @@ export function clearSession(store: Store | undefined = def()) {
 export function readSession(now = Date.now(), store: Store | undefined = def()): Session | null {
   try {
     const raw = JSON.parse(store?.getItem(KEY) ?? "null");
-    if (!raw || !raw.plan || !Array.isArray(raw.plan.stations) || !isPlace(raw.origin) || !isPlace(raw.destination)) return null;
+    if (!raw || !isPlan(raw.plan) || !isPlace(raw.origin) || !isPlace(raw.destination)) return null;
     if (!Number.isInteger(raw.index) || raw.index < 0) return null;
     if (!Number.isFinite(raw.savedAt) || now - raw.savedAt > MAX_AGE_MS || raw.savedAt > now + 60_000) return null;
     return raw as Session;

@@ -48,8 +48,16 @@ export function useRide(plan: Plan | null, destination: LatLng | null, destinati
     setPos(null);
   }, []);
 
+  /** Keep the screen on. The browser drops the lock whenever the page is hidden, so this runs again on return. */
+  const keepAwake = useCallback(() => {
+    if (lock.current || document.visibilityState !== "visible") return;
+    (navigator as unknown as { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock
+      ?.request("screen").then((l) => { if (watch.current == null) l.release().catch(() => {}); else lock.current = l; }).catch(() => {});
+  }, []);
+
   const start = useCallback(() => {
     if (!("geolocation" in navigator)) { setError("This device can't share its location."); return; }
+    stop(); // starting again (say, resuming) must not leave the old GPS watch and compass listeners running
     setError(""); setIndex(0); setFollow(true); setActive(true);
     // Compass: iOS asks permission (this runs from the Start tap, which allows it); Android reports it as "absolute".
     const DOE = (window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } }).DeviceOrientationEvent;
@@ -70,8 +78,6 @@ export function useRide(plan: Plan | null, destination: LatLng | null, destinati
     };
     if (DOE?.requestPermission) DOE.requestPermission().then((r) => r === "granted" && listen()).catch(() => {});
     else listen();
-    (navigator as unknown as { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock
-      ?.request("screen").then((l) => { lock.current = l; }).catch(() => {});
     watch.current = navigator.geolocation.watchPosition(
       (p) => {
         const fix = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy };
@@ -83,11 +89,20 @@ export function useRide(plan: Plan | null, destination: LatLng | null, destinati
       (e) => { setError(e.code === 1 ? "Location permission was denied." : "Can't get your location right now."); },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
     );
-  }, [publish]);
+    keepAwake();
+  }, [publish, stop, keepAwake]);
+
+  // Back from Google Maps (or any other app): the screen lock was released while away, so take it again.
+  useEffect(() => {
+    if (!active) return;
+    const onVis = () => { if (document.visibilityState === "visible") { lock.current = null; keepAwake(); } };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [active, keepAwake]);
 
   // A different route (or none) ends the ride.
   useEffect(() => { if (active) stop(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [plan?.id]);
-  useEffect(() => () => { if (watch.current != null) navigator.geolocation.clearWatch(watch.current); }, []);
+  useEffect(() => () => stop(), [stop]); // leaving the page: GPS, compass and screen lock all let go
 
   return { active, pos, heading, index, legs, error, follow, setFollow, setIndex, start, stop, done: active && legs.length > 0 && index >= legs.length };
 }

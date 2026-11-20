@@ -4,6 +4,11 @@ const VERSION = "v1";
 const APP = `badgergo-app-${VERSION}`;
 const TILES = `badgergo-tiles-${VERSION}`;
 const MAX_TILES = 600;
+/** Same-site files (each deploy adds new hashed ones): keep the newest this many. */
+const MAX_APP = 80;
+
+/** Saving a copy is a bonus: a full disk or an unsaveable response (206, error) must not break the fetch. */
+const keep = (c, req, r) => c.put(req, r).catch(() => {});
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
@@ -16,14 +21,17 @@ self.addEventListener("activate", (e) => {
 async function trim(name, max) {
   const c = await caches.open(name);
   const keys = await c.keys();
-  for (let i = 0; i < keys.length - max; i++) await c.delete(keys[i]);
+  for (let i = 0; i < keys.length - max; i++) if (!(name === APP && new URL(keys[i].url).pathname === "/")) await c.delete(keys[i]);
 }
 
 /** Serve the cached copy now and refresh it in the background. */
 async function staleWhileRevalidate(req, cacheName) {
   const c = await caches.open(cacheName);
   const hit = await c.match(req);
-  const fresh = fetch(req).then((r) => { if (r.ok || r.type === "opaque") c.put(req, r.clone()); return r; }).catch(() => null);
+  const fresh = fetch(req).then((r) => {
+    if (r.status === 200 || r.type === "opaque") keep(c, req, r.clone()).then(() => trim(cacheName, MAX_APP).catch(() => {}));
+    return r;
+  }).catch(() => null);
   return hit || (await fresh) || Response.error();
 }
 
@@ -32,7 +40,7 @@ async function page(req) {
   const c = await caches.open(APP);
   try {
     const r = await Promise.race([fetch(req), new Promise((_, no) => setTimeout(() => no(new Error("slow")), 4000))]);
-    if (r.ok) c.put("/", r.clone());
+    if (r.status === 200) keep(c, "/", r.clone());
     return r;
   } catch {
     return (await c.match("/")) || Response.error();
@@ -46,7 +54,7 @@ async function tile(req) {
   if (hit) return hit;
   try {
     const r = await fetch(req);
-    if (r.ok || r.type === "opaque") { await c.put(req, r.clone()); trim(TILES, MAX_TILES); }
+    if (r.status === 200 || r.type === "opaque") keep(c, req, r.clone()).then(() => trim(TILES, MAX_TILES).catch(() => {}));
     return r;
   } catch { return Response.error(); }
 }

@@ -1,3 +1,4 @@
+import { SEARCH_VIEWBOX } from "../config";
 import { KINDS } from "./bikeways";
 import { isMyBike } from "./myBike";
 import type { Place, Plan, RoadPrefs, Station } from "./types";
@@ -59,12 +60,24 @@ export function encodeShare(r: SharedRoute): string {
 
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 
+/** A shared route must stay in and around the service area (a link is someone else's data). */
+const AREA_PAD = 0.3; // degrees, about 25-30 km
+const inArea = (lat: number, lon: number) => {
+  const [w, s, e, n] = SEARCH_VIEWBOX;
+  return lat >= s - AREA_PAD && lat <= n + AREA_PAD && lon >= w - AREA_PAD && lon <= e + AREA_PAD;
+};
+/** Plain, short text: no control characters (line breaks, direction overrides and the like). */
+const cleanLabel = (s: string) => s.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+
 function readPlace(x: unknown): Place | null {
   if (!Array.isArray(x) || x.length < 3) return null;
   const [lat, lon, label] = x;
-  if (!isNum(lat) || !isNum(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180 || typeof label !== "string") return null;
-  return { lat, lon, label: label.slice(0, 120) };
+  if (!isNum(lat) || !isNum(lon) || !inArea(lat, lon) || typeof label !== "string") return null;
+  const clean = cleanLabel(label);
+  return { lat, lon, label: clean || `${lat.toFixed(5)}, ${lon.toFixed(5)}` };
 }
+/** An index into a fixed list: a whole number only (so "length" or "constructor" can't pick something odd). */
+const pick = <T,>(list: readonly T[], i: unknown): T | undefined => (Number.isInteger(i) && (i as number) >= 0 && (i as number) < list.length ? list[i as number] : undefined);
 
 /** Read a token back. Anything malformed, from the wrong version or out of range gives null, never a throw. */
 export function decodeShare(token: string): SharedRoute | null {
@@ -75,7 +88,7 @@ export function decodeShare(token: string): SharedRoute | null {
     const destination = readPlace(j.d);
     if (!origin || !destination) return null;
     const ids: unknown = j.s;
-    if (!Array.isArray(ids) || ids.length > MAX_STOPS || !ids.every((s) => typeof s === "string" && s.length > 0 && s.length <= 64)) return null;
+    if (!Array.isArray(ids) || ids.length > MAX_STOPS || !ids.every((s) => typeof s === "string" && /^[\w.:-]{1,64}$/.test(s))) return null;
     const walkOnly = j.w === 1;
     const bikeLeft = j.b == null ? null : isNum(j.b) ? Math.max(0, Math.min(30, Math.round(j.b))) : undefined;
     if (bikeLeft === undefined) return null;
@@ -84,10 +97,10 @@ export function decodeShare(token: string): SharedRoute | null {
     const maxRide = isNum(j.m) ? Math.max(5, Math.min(30, Math.round(j.m))) : 25;
     const p = j.p;
     if (!Array.isArray(p) || p.length !== 4) return null;
-    const traffic = Math.round(Number(p[0]));
-    const unpaved = UNPAVED[p[2] as number];
-    const hills = HILLS[p[3] as number];
-    if (!(traffic >= 0 && traffic < KINDS.length) || !unpaved || !hills) return null;
+    const traffic = p[0];
+    const unpaved = pick(UNPAVED, p[2]);
+    const hills = pick(HILLS, p[3]);
+    if (!Number.isInteger(traffic) || traffic < 0 || traffic >= KINDS.length || !unpaved || !hills) return null;
     return {
       origin,
       destination,

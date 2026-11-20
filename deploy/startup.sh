@@ -55,6 +55,16 @@ ${SITE} {
 	}
 	respond @blocked "Forbidden" 403
 
+	# Only what the app uses. The Origin check stops other web pages, not scripts (they can fake the header), so keep
+	# the rest of Valhalla's API (isochrones, map matching, huge matrices...) and oversized requests away from them.
+	request_body {
+		max_size 1MB
+	}
+	@notapi {
+		not path /route /sources_to_targets /height /trace_attributes /status
+	}
+	respond @notapi "Not found" 404
+
 	header {
 		Access-Control-Allow-Origin "{http.request.header.Origin}"
 		Access-Control-Allow-Methods "GET, POST, OPTIONS"

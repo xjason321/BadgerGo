@@ -567,3 +567,22 @@ describe("elevation profile", () => {
     expect(await fetchProfile([{ mode: "walk", geometry: [[1, 1], [1.01, 1]] }], bad, "http://y")).toBeNull();
   });
 });
+
+describe("dock feed hardening", () => {
+  const st = (o: object) => ({ station_id: "a", name: "A", lat: 43.07, lon: -89.4, ...o });
+  const status = [{ station_id: "a", num_bikes_available: 3, num_docks_available: 4 }, { station_id: "b", num_bikes_available: 1, num_docks_available: 1 }];
+  it("drops docks with missing or impossible coordinates or ids", () => {
+    const out = joinStations([st({ lat: "43" }), st({ station_id: "b", lon: 999 }), st({ station_id: 5 }), st({ station_id: "b" })] as never, status as never);
+    expect(out.map((s) => s.id)).toEqual(["b"]);
+  });
+  it("keeps only https app links", () => {
+    const [a] = joinStations([st({ rental_uris: { ios: "javascript:alert(1)", android: "https://bcycle.com/x" } })] as never, status as never);
+    expect(a.rentalUris).toEqual({ android: "https://bcycle.com/x", ios: undefined });
+    expect(bcycleUrl({ id: "a", rentalUris: { ios: "javascript:alert(1)" } }, true)).toMatch(/^https:\/\/www\.bcycle\.com\/applink/);
+  });
+  it("turns odd counts and names into safe values", () => {
+    const [a] = joinStations([st({ name: "Dock\nOne" })] as never, [{ station_id: "a", num_bikes_available: -2, num_docks_available: "7" }] as never);
+    expect(a).toMatchObject({ name: "Dock One", bikesAvailable: 0, docksAvailable: 0 });
+  });
+  it("refuses a feed that isn't a list", () => expect(() => joinStations(undefined as never, [])).toThrow());
+});

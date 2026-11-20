@@ -75,3 +75,33 @@ describe("share links", () => {
     expect(chainFromIds(["a1", "gone"], live)).toBeNull();
   });
 });
+
+describe("share links from someone else", () => {
+  /** A token built by hand, the way a tampered link would be. */
+  const tok = (o: object) => {
+    const base = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encodeShare(route()).replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0))));
+    const bytes = new TextEncoder().encode(JSON.stringify({ ...base, ...o }));
+    return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  };
+  it("refuses places far outside Madison", () => {
+    expect(decodeShare(tok({ o: [48.8566, 2.3522, "Paris"] }))).toBeNull();
+    expect(decodeShare(tok({ d: [0, 0, "Null Island"] }))).toBeNull();
+    expect(decodeShare(tok({ o: [43.1, -89.5, "Middleton"] }))).not.toBeNull();
+  });
+  it("strips line breaks and text-direction tricks from names", () => {
+    const r = decodeShare(tok({ o: [43.07, -89.4, "Memorial\nUnion\u202Egpj.exe"] }))!;
+    expect(r.origin.label).toBe("Memorial Union gpj.exe");
+    expect(decodeShare(tok({ o: [43.07, -89.4, "\u0000\n"] }))!.origin.label).toBe("43.07000, -89.40000");
+  });
+  it("only takes real list positions for preferences", () => {
+    expect(decodeShare(tok({ p: [2, 1, "length", 0] }))).toBeNull();
+    expect(decodeShare(tok({ p: [2, 1, "constructor", 0] }))).toBeNull();
+    expect(decodeShare(tok({ p: [2, 1, 0.5, 0] }))).toBeNull();
+    expect(decodeShare(tok({ p: [1.6, 1, 0, 0] }))).toBeNull();
+    expect(decodeShare(tok({ p: [2, 1, 1, 2] }))?.prefs).toMatchObject({ unpaved: "ok", hills: "ok" });
+  });
+  it("only takes plain dock ids", () => {
+    expect(decodeShare(tok({ s: ["bcycle_madison_3260", "a1"] }))).not.toBeNull();
+    expect(decodeShare(tok({ s: ["<img src=x>", "a1"] }))).toBeNull();
+  });
+});

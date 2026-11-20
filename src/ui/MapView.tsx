@@ -112,6 +112,13 @@ function unpavedMarker(map: L.Map, run: UnpavedRun): L.Marker {
   });
 }
 
+/** Leaflet reads a string as HTML; a dock name from the feed must stay plain text. */
+function textEl(t: string): HTMLElement {
+  const el = document.createElement("span");
+  el.textContent = t;
+  return el;
+}
+
 /** What a dock popup needs to offer "refresh the BCycle data" (allowed once a minute). */
 interface Refresher { loadedAt: () => number; busy: () => boolean; refresh: () => void }
 const COOLDOWN_MS = 60_000;
@@ -486,7 +493,7 @@ export function MapView({ center, stations, origin, destination, plan, boundary,
     plan.stations.forEach((s, i) => {
       if (i > 0 && i < plan.stations.length - 1) {
         L.marker([s.lat, s.lon], { icon: L.divIcon({ className: "", iconSize: [0, 0], iconAnchor: [0, 0] }), interactive: false, keyboard: false })
-          .bindTooltip(`Swap here: ${s.name}`, { permanent: true, direction: "top", offset: [0, -18], className: "swap-tip" })
+          .bindTooltip(textEl(`Swap here: ${s.name}`), { permanent: true, direction: "top", offset: [0, -18], className: "swap-tip" })
           .addTo(g);
       }
     });

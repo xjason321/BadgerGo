@@ -7,7 +7,7 @@ import type { Station } from "./types";
  */
 export function bcycleUrl(s: Pick<Station, "id" | "rentalUris">, ios: boolean, systemId = SYSTEM_ID): string {
   const given = ios ? s.rentalUris?.ios : s.rentalUris?.android;
-  if (given) return given;
+  if (given && /^https:\/\//i.test(given)) return given; // never a javascript: or other scheme
   const q = new URLSearchParams({ system_id: systemId, station_id: s.id, platform: ios ? "iOS" : "android" });
   return `https://www.bcycle.com/applink?${q}`;
 }

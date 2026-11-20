@@ -5,7 +5,7 @@ import { formatDistance } from "../core/ride";
 import { trafficExposure } from "../core/planner";
 import { overageCost } from "../core/pricing";
 import { STUDENT_PLAN, type Plan, type Station } from "../core/types";
-import { AlertIcon, BikeIcon, CheckIcon, ClockIcon, CloseIcon, DollarIcon, PencilIcon, RouteIcon, SwapIcon, WalkIcon } from "./icons";
+import { AlertIcon, BikeIcon, CheckIcon, ClockIcon, CloseIcon, DollarIcon, PencilIcon, RouteIcon, ShareIcon, SwapIcon, WalkIcon } from "./icons";
 import { ElevationProfile } from "./ElevationProfile";
 import { startsOnBike } from "../core/myBike";
 import { RoadBar } from "./RoadBar";
@@ -39,13 +39,15 @@ interface Props {
   stations?: Station[];
   /** How this route differs from the others, shown under its name. */
   blurb?: string;
+  /** Share this route (the button at the bottom of the card on desktop; phones use the one beside Back). */
+  onShare?: () => void;
   /** Show what each route costs (Free / +$8 / over limit). Off when bike swapping is off. */
   showCost?: boolean;
 }
 
 /** One route suggestion: headline numbers, then the trip step by step. */
-export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, stations, blurb, showCost = true }: Props) {
-  if (p.walkOnly) return <WalkCard plan={p} index={index} selected={selected} onSelect={onSelect} showCost={showCost} />;
+export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, stations, blurb, showCost = true, onShare }: Props) {
+  if (p.walkOnly) return <WalkCard plan={p} index={index} selected={selected} onSelect={onSelect} showCost={showCost} onShare={onShare} />;
   if (editing) return <EditCard plan={p} onRemoveStop={onRemoveStop} onReorder={onReorder} onDone={onDone} onDiscard={onDiscard} onFocusStation={onFocusStation} showCost={showCost} />;
   const swaps = p.stations.length - 2;
   const [name, kind] = p.label.split(" · ");
@@ -141,7 +143,7 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
         </div>
       )}
 
-      {swaps > 0 && p.id !== "custom" && (
+      {swaps > 0 && p.id !== "custom" && p.id !== "shared" && (
         <div className="note info">
           <SwapIcon size={15} />
           <span>+{Math.round(p.detourMinutes)} min vs riding straight through{saves > 0 ? ` · saves $${saves}` : ""}</span>
@@ -157,6 +159,11 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
             <span>{miles(exposure.m)} mi ({Math.round(exposure.share * 100)}%) closer to traffic than your limit</span>
           </div>
         ))}
+      {onShare && (
+        <button className="edit-pencil card-share" onClick={(e) => { e.stopPropagation(); onShare(); }} aria-label="Share this route" title="Share this route">
+          <ShareIcon size={18} />
+        </button>
+      )}
       {onEdit && !editing && (
         <button className="edit-pencil" onClick={(e) => { e.stopPropagation(); onEdit(); }} aria-label="Edit this route's docks" title="Edit docks">
           <PencilIcon size={18} />
@@ -294,7 +301,7 @@ function EditStops({ plan, onRemove, onReorder, onFocus }: { plan: Plan; onRemov
   );
 }
 
-function WalkCard({ plan: p, index, selected, onSelect, showCost = true }: Pick<Props, "plan" | "index" | "selected" | "onSelect" | "showCost">) {
+function WalkCard({ plan: p, index, selected, onSelect, showCost = true, onShare }: Pick<Props, "plan" | "index" | "selected" | "onSelect" | "showCost" | "onShare">) {
   return (
     <li className={`plan${selected ? " sel" : ""}`} onClick={onSelect}>
       <div className="plan-head">
@@ -321,6 +328,11 @@ function WalkCard({ plan: p, index, selected, onSelect, showCost = true }: Pick<
       </ol>
       <ElevationProfile plan={p} />
       <div className="note info"><WalkIcon size={15} /><span>No bike needed. Ignores the ride limit and terrain preferences.</span></div>
+      {onShare && (
+        <button className="edit-pencil card-share" onClick={(e) => { e.stopPropagation(); onShare(); }} aria-label="Share this route" title="Share this route">
+          <ShareIcon size={18} />
+        </button>
+      )}
     </li>
   );
 }

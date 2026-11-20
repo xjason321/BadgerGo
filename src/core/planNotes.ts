@@ -28,7 +28,7 @@ const distinct = (xs: string[]) => new Set(xs).size > 1;
  */
 export function describePlans(all: Plan[], opts: { showCost?: boolean } = {}): Record<string, string> {
   const showCost = opts.showCost ?? true; // without swaps there's one ride, so cost isn't a thing to compare
-  const plans = all.filter((p) => !p.walkOnly && p.id !== "custom" && p.stations.length >= 2);
+  const plans = all.filter((p) => !p.walkOnly && p.id !== "custom" && p.id !== "shared" && p.stations.length >= 2);
   const out: Record<string, string> = {};
   if (!plans.length) return out;
 

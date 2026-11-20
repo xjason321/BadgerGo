@@ -791,3 +791,14 @@ a.start-fab { text-decoration: none; }
 .bike-text .nw { white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
 .check .left-input { width: 56px; padding: 5px 6px; border-radius: 10px; border: 1.5px solid var(--line, rgba(127,127,127,.4)); background: var(--card); color: var(--ink); font: inherit; font-weight: 700; text-align: center; vertical-align: middle; margin: 0 1px; height: auto; flex: none; }
 .check .left-input:focus-visible { outline: 2px solid var(--g700); outline-offset: 1px; }
+
+/* Share: beside the pencil on a desktop card; on phones it sits next to Back instead. */
+.edit-pencil.card-share { right: 60px; }
+.edit-pencil.card-share:last-child { right: 12px; }
+.share-fab { display: none; }
+@media (max-width: 899px) {
+  .share-fab { display: grid; place-items: center; width: 52px; height: 52px; border: 3px solid #fff; border-radius: 50%; background: var(--g900); color: #fff; box-shadow: 0 4px 0 #04200f, 0 8px 20px #0005; cursor: pointer; }
+  .share-fab:active { transform: translateY(2px); box-shadow: 0 2px 0 #04200f, 0 4px 12px #0005; }
+}
+[data-theme="dark"] .share-fab { background: #12261a; border-color: #ffffff59; }
+.toast { position: fixed; z-index: 900; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: min(92vw, 420px); padding: 10px 16px; border-radius: 999px; background: #0b3b25; color: #fff; border: 2px solid #b8f23a; font-weight: 700; font-size: 14px; box-shadow: 0 8px 24px #0006; text-align: center; }

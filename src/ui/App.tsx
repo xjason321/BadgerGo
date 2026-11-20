@@ -17,14 +17,15 @@ import { NearestDocks } from "./NearestDocks";
 import { WeatherChip } from "./WeatherChip";
 import { describePlans } from "../core/planNotes";
 import { googleDirectUrl } from "../core/navLinks";
-import { startsOnBike } from "../core/myBike";
+import { myBikeStation, startsOnBike } from "../core/myBike";
+import { chainFromIds, readShareParam, shareFromPlan, shareUrl, type SharedRoute } from "../core/share";
 import { useRideCues } from "./useRideCues";
 import { readCues, writeCues } from "../core/cues";
 import { ago, loadStations } from "../core/stationCache";
 import { clearSession, readSession, saveSession, type Session } from "../core/rideSession";
 import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, writePlaces, type Places } from "../core/savedPlaces";
 import { DockMenu } from "./DockMenu";
-import { PencilIcon } from "./icons";
+import { PencilIcon, ShareIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
 import { InstallTip } from "./InstallTip";
 import { useBikeTimer } from "./useBikeTimer";
@@ -543,6 +544,62 @@ export function App() {
     } catch (e) { setStatus((e as Error).message); } finally { setBusy(false); }
   };
 
+  // ---- Sharing: send the exact route as a link; opening one shows just that route ----
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const say = (m: string) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(""), 3000); };
+  const [shared] = useState<SharedRoute | null>(() => readShareParam(window.location.search));
+  const openedShare = useRef(false);
+  const openShared = async (r: SharedRoute) => {
+    const provider = new FallbackProvider(new ValhallaProvider(r.prefs), new OsrmProvider());
+    setOrigin(r.origin); setDestination(r.destination);
+    setText({ origin: r.origin.label, destination: r.destination.label });
+    setPrefs(r.prefs); setSwapsOn(r.swapsOn); setMaxRide(r.maxRide);
+    setHaveBike(r.bikeLeft != null); if (r.bikeLeft != null) setLeftText(String(r.bikeLeft));
+    setBusy(true); setPlans([]); setStatus("Opening the shared route…");
+    try {
+      let np: Plan;
+      if (r.walkOnly) {
+        const [w] = await provider.route("walk", r.origin, r.destination, false);
+        if (!w) throw new Error("no walking route");
+        np = walkOnlyPlan(w);
+      } else {
+        const docks = chainFromIds(r.stationIds, stations);
+        if (!docks) { setStatus("A dock on that shared route isn't available any more. Search this trip to get fresh routes."); return; }
+        const chain = r.bikeLeft != null ? [myBikeStation(r.origin), ...docks] : docks;
+        const refine = r.prefs.strict && r.prefs.traffic < KINDS.length - 1 ? strictRefiner(provider, r.prefs.traffic) : undefined;
+        np = await buildCustomPlan(r.origin, r.destination, chain, provider, { maxRideMinutes: r.swapsOn ? r.maxRide : STUDENT_PLAN.freeMinutes, startMinutesLeft: r.bikeLeft ?? undefined, refineRide: refine });
+        const swaps = docks.length - (r.bikeLeft != null ? 1 : 2);
+        np = { ...np, id: "shared", label: `Shared route · ${swaps <= 0 ? "Direct" : swaps === 1 ? "1 swap" : `${swaps} swaps`}` };
+        try { np = { ...np, roads: await analyzePlan(np) }; } catch { /* road types are a bonus */ }
+      }
+      setPlans([np]); setSelected(0); setDetail(0); setDoneSig(""); setStatus("");
+      if (isPhone()) setSnap("half");
+    } catch (e) {
+      setStatus(`Couldn't open that shared route (${(e as Error).message}). Search this trip to get routes.`);
+    } finally { setBusy(false); }
+  };
+  useEffect(() => {
+    if (!shared || openedShare.current) return;
+    if (!stations.length) return; // wait for the docks: the route is rebuilt from them
+    openedShare.current = true;
+    try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignore */ }
+    openShared(shared);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shared, stations]);
+  const shareRoute = async () => {
+    if (!plan || !origin || !destination) return;
+    const link = shareUrl(window.location.origin + window.location.pathname, shareFromPlan(plan, { origin, destination, swapsOn, maxRide, prefs }));
+    const title = `Bike route to ${destination.label.split(",")[0]}`;
+    try {
+      if (navigator.share) { await navigator.share({ title, text: `${title} on BadgerGo`, url: link }); return; }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return; // they closed the share sheet
+    }
+    try { await navigator.clipboard.writeText(link); say("Link copied. Paste it to share this route."); }
+    catch { window.prompt("Copy this link to share the route:", link); }
+  };
+
   const plan = plans[selected] ?? null;
   const blurbs = useMemo(() => describePlans(plans, { showCost: swapsOn }), [plans, swapsOn]);
   const ride = useRide(plan, destination, destination?.label.split(",")[0]);
@@ -717,6 +774,11 @@ export function App() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
             Back
           </button>
+          {plan && !editing && (
+            <button className="share-fab" onClick={shareRoute} aria-label="Share this route" title="Share this route">
+              <ShareIcon size={20} />
+            </button>
+          )}
           {bikePlan && !startsOnBike(bikePlan) && !(editing && bikePlan.id === "custom") && (
             <button className="edit-fab" onClick={() => startEdit(bikePlan)} aria-label="Edit this route's docks" title="Edit docks">
               <PencilIcon size={20} />
@@ -726,6 +788,7 @@ export function App() {
       )}
       {themeBtn("on-desktop")}
       {about && <AboutDialog onClose={() => setAbout(false)} />}
+      {toast && <div className="toast" role="status">{toast}</div>}
       {/* The weather sits in the map's top-left corner on every screen (the panel is a moving sheet, so it can't live inside it). */}
       {!ride.active && <WeatherChip className="wx-map" lat={(origin ?? destination)?.lat ?? 43.0731} lon={(origin ?? destination)?.lon ?? -89.4012} tripMinutes={plans.length ? plans[selected]?.totalMinutes ?? 30 : 30} />}
       {resume && !ride.active && (
@@ -956,6 +1019,7 @@ export function App() {
                   onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })}
                   stations={stations}
                   blurb={blurbs[p.id]}
+                  onShare={!editing && i === selected ? shareRoute : undefined}
                   showCost={swapsOn}
                 />
               ))}

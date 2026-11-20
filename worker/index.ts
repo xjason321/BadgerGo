@@ -1,4 +1,4 @@
-// Cloudflare Worker for BadgerGo's anonymous usage counts. It runs on badgergo.app/api/* (wrangler.jsonc); the
+// Cloudflare Worker for BadgerGo's anonymous usage counts. It runs on badgergo.app/api/* (wrangler.stats.jsonc); the
 // site itself stays a static site. Deploy: npm run deploy:stats.
 import { handle } from "./app";
 import { Timers, type TimersEnv } from "./timers";

@@ -6,6 +6,6 @@ const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256
 const publicKey = Buffer.from(await crypto.subtle.exportKey("raw", pair.publicKey)).toString("base64url");
 const privateJwk = JSON.stringify(await crypto.subtle.exportKey("jwk", pair.privateKey));
 
-console.log("1. npx wrangler secret put VAPID_PUBLIC_KEY\n   paste:\n   " + publicKey + "\n");
-console.log("2. npx wrangler secret put VAPID_PRIVATE_JWK\n   paste (one line, keep it secret):\n   " + privateJwk + "\n");
+console.log("1. npx wrangler secret put VAPID_PUBLIC_KEY -c wrangler.stats.jsonc\n   paste:\n   " + publicKey + "\n");
+console.log("2. npx wrangler secret put VAPID_PRIVATE_JWK -c wrangler.stats.jsonc\n   paste (one line, keep it secret):\n   " + privateJwk + "\n");
 console.log("Then: npm run deploy:stats");

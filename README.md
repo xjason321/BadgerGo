@@ -21,7 +21,8 @@
 Anonymous usage counts, shown at `https://badgergo.app/analytics` (anyone with the link can open it; it is marked `noindex`).
 
 - **What is counted:** per day, how many devices opened the app (unique over 1/7/30/90 days), new devices, devices open by hour, device kind, browser vs Home Screen app, and counts of a few features (routes planned, rides started, shares, edits, timer, alerts, nearest bike/dock). No identifiers, places, or routes are sent. Browsers with Do Not Track / Global Privacy Control on, automated browsers and bots are not counted.
-- **How:** a separate Cloudflare Worker (`worker/`, config in `wrangler.jsonc`) on the route `badgergo.app/api/*` keeps the counts in a SQLite Durable Object. The site itself stays static. The page and the reporting code live in `src/analytics/` and `src/ui/usage.ts`.
+- **Two deploys, on purpose:** the site is built and deployed by Cloudflare from GitHub (Node 22, pinned in `.node-version` because wrangler needs it); the stats Worker is deployed by hand with `npm run deploy:stats`. Its config is `wrangler.stats.jsonc`, not `wrangler.jsonc`, so the site's `wrangler deploy` never picks it up.
+- **How:** a separate Cloudflare Worker (`worker/`, config in `wrangler.stats.jsonc`) on the route `badgergo.app/api/*` keeps the counts in a SQLite Durable Object. The site itself stays static. The page and the reporting code live in `src/analytics/` and `src/ui/usage.ts`.
 - **Deploy the counter once** (the zone `badgergo.app` must be on your Cloudflare account):
   ```
   npm install
@@ -38,8 +39,8 @@ While the bike timer runs and the rider has switched to another app, phones free
 - **One-time setup** (after `npm run deploy:stats` works):
   ```
   npm run vapid          # prints the two commands below with your new key pair
-  npx wrangler secret put VAPID_PUBLIC_KEY
-  npx wrangler secret put VAPID_PRIVATE_JWK
+  npx wrangler secret put VAPID_PUBLIC_KEY -c wrangler.stats.jsonc
+  npx wrangler secret put VAPID_PRIVATE_JWK -c wrangler.stats.jsonc
   npm run deploy:stats
   ```
   Until both secrets exist, `/api/push/key` answers 404 and the app uses its own notifications. Keep the private value out of the repo.

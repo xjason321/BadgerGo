@@ -1,6 +1,7 @@
 // BadgerGo's usage-counting Worker (worker/). The site itself is a static site served as before; this Worker only
 // answers badgergo.app/api/* (anonymous usage counts in, dashboard numbers out). Deploy with `npm run deploy:stats`
-// after `npx wrangler login`. The zone must be on the Cloudflare account you log in with.
+// after `npx wrangler login`. This file is deliberately not called wrangler.jsonc: the site's own build runs a plain
+// `wrangler deploy` in Cloudflare, which must not find a config here and deploy this Worker instead of the site. The zone must be on the Cloudflare account you log in with.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "badgergo-stats",

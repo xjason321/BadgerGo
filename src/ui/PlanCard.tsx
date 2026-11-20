@@ -39,12 +39,14 @@ interface Props {
   stations?: Station[];
   /** How this route differs from the others, shown under its name. */
   blurb?: string;
+  /** Show what each route costs (Free / +$8 / over limit). Off when bike swapping is off. */
+  showCost?: boolean;
 }
 
 /** One route suggestion: headline numbers, then the trip step by step. */
-export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, stations, blurb }: Props) {
-  if (p.walkOnly) return <WalkCard plan={p} index={index} selected={selected} onSelect={onSelect} />;
-  if (editing) return <EditCard plan={p} onRemoveStop={onRemoveStop} onReorder={onReorder} onDone={onDone} onDiscard={onDiscard} onFocusStation={onFocusStation} />;
+export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onEdit, editing, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, stations, blurb, showCost = true }: Props) {
+  if (p.walkOnly) return <WalkCard plan={p} index={index} selected={selected} onSelect={onSelect} showCost={showCost} />;
+  if (editing) return <EditCard plan={p} onRemoveStop={onRemoveStop} onReorder={onReorder} onDone={onDone} onDiscard={onDiscard} onFocusStation={onFocusStation} showCost={showCost} />;
   const swaps = p.stations.length - 2;
   const [name, kind] = p.label.split(" · ");
   const directCost = p.directRideMinutes == null ? 0 : overageCost(p.directRideMinutes, STUDENT_PLAN);
@@ -61,11 +63,11 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
           <b>{name}</b>
           <span>{blurb ?? kind}</span>
         </div>
-        {p.withinLimit ? (
+        {showCost && (p.withinLimit ? (
           <span className="chip good"><CheckIcon size={14} /> {p.overageCost ? `+$${p.overageCost}` : "Free"}</span>
         ) : (
           <span className="chip bad"><DollarIcon size={14} /> +${p.overageCost} · over limit</span>
-        )}
+        ))}
       </div>
 
       <div className="stats">
@@ -165,7 +167,7 @@ export function PlanCard({ plan: p, index, selected, trafficLevel, onSelect, onE
 }
 
 /** While editing, the card is just the custom route: its three numbers and the docks as draggable tiles with the time between them. */
-function EditCard({ plan: p, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation }: Pick<Props, "plan" | "onRemoveStop" | "onReorder" | "onDone" | "onDiscard" | "onFocusStation">) {
+function EditCard({ plan: p, onRemoveStop, onReorder, onDone, onDiscard, onFocusStation, showCost = true }: Pick<Props, "plan" | "onRemoveStop" | "onReorder" | "onDone" | "onDiscard" | "onFocusStation" | "showCost">) {
   const dist = p.rides.reduce((a, r) => a + r.distanceM, 0);
   return (
     <li className="plan sel edit-card" onClick={(e) => e.stopPropagation()}>
@@ -174,11 +176,11 @@ function EditCard({ plan: p, onRemoveStop, onReorder, onDone, onDiscard, onFocus
           <b>Editing route</b>
           <span>Drag to reorder</span>
         </div>
-        {p.withinLimit ? (
+        {showCost && (p.withinLimit ? (
           <span className="chip good"><CheckIcon size={14} /> {p.overageCost ? `+$${p.overageCost}` : "Free"}</span>
         ) : (
           <span className="chip bad"><DollarIcon size={14} /> +${p.overageCost}</span>
-        )}
+        ))}
         <button className="edit-done" onClick={onDone}>Done</button>
       </div>
       <div className="stats">
@@ -292,7 +294,7 @@ function EditStops({ plan, onRemove, onReorder, onFocus }: { plan: Plan; onRemov
   );
 }
 
-function WalkCard({ plan: p, index, selected, onSelect }: Pick<Props, "plan" | "index" | "selected" | "onSelect">) {
+function WalkCard({ plan: p, index, selected, onSelect, showCost = true }: Pick<Props, "plan" | "index" | "selected" | "onSelect" | "showCost">) {
   return (
     <li className={`plan${selected ? " sel" : ""}`} onClick={onSelect}>
       <div className="plan-head">
@@ -301,7 +303,7 @@ function WalkCard({ plan: p, index, selected, onSelect }: Pick<Props, "plan" | "
           <b>{index === 0 ? "Recommended" : `Option ${index + 1}`}</b>
           <span>Walk straight there</span>
         </div>
-        <span className="chip good"><CheckIcon size={14} /> Free</span>
+        {showCost && <span className="chip good"><CheckIcon size={14} /> Free</span>}
       </div>
       <div className="stats">
         <div><ClockIcon /><b>{min(p.totalMinutes)}</b><span>total</span></div>

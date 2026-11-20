@@ -544,7 +544,7 @@ export function App() {
   };
 
   const plan = plans[selected] ?? null;
-  const blurbs = useMemo(() => describePlans(plans), [plans]);
+  const blurbs = useMemo(() => describePlans(plans, { showCost: swapsOn }), [plans, swapsOn]);
   const ride = useRide(plan, destination, destination?.label.split(",")[0]);
   /** While riding, keep dock counts fresh so "dock is full" warnings are current. */
   useEffect(() => {
@@ -956,6 +956,7 @@ export function App() {
                   onFocusStation={(s) => setFocus({ lat: s.lat, lon: s.lon, n: Date.now() })}
                   stations={stations}
                   blurb={blurbs[p.id]}
+                  showCost={swapsOn}
                 />
               ))}
             </ul>

@@ -26,7 +26,8 @@ const distinct = (xs: string[]) => new Set(xs).size > 1;
  * cheapest, most protected from traffic, least riding or walking) and what is structurally different
  * (swaps, pick-up dock, drop-off dock). Keys are plan ids; walk-only and custom routes get none.
  */
-export function describePlans(all: Plan[]): Record<string, string> {
+export function describePlans(all: Plan[], opts: { showCost?: boolean } = {}): Record<string, string> {
+  const showCost = opts.showCost ?? true; // without swaps there's one ride, so cost isn't a thing to compare
   const plans = all.filter((p) => !p.walkOnly && p.id !== "custom" && p.stations.length >= 2);
   const out: Record<string, string> = {};
   if (!plans.length) return out;
@@ -36,12 +37,12 @@ export function describePlans(all: Plan[]): Record<string, string> {
   if (plans.length >= 2) {
     give(uniqueBest(plans, (p) => p.totalMinutes, 1), "Fastest");
     // When going faster would cost money, say which route is quickest without paying anything extra.
-    const free = plans.filter((p) => p.overageCost === 0);
+    const free = showCost ? plans.filter((p) => p.overageCost === 0) : [];
     const fastestOverall = uniqueBest(plans, (p) => p.totalMinutes, 1);
     if (free.length && free.length < plans.length && !(fastestOverall && fastestOverall.overageCost === 0)) {
       give(free.length === 1 ? free[0] : uniqueBest(free, (p) => p.totalMinutes, 1), free.length === 1 ? "Only free route" : "Fastest that's free");
     }
-    give(uniqueBest(plans, (p) => p.overageCost, 1), "Cheapest");
+    if (showCost) give(uniqueBest(plans, (p) => p.overageCost, 1), "Cheapest");
     give(uniqueBest(plans, protectedShare, 0.1, true), "Most protected from traffic");
     give(uniqueBest(plans, (p) => p.rideMinutes, 1), "Least time on a bike");
     give(uniqueBest(plans, walkMin, 2), "Least walking");
@@ -61,7 +62,7 @@ export function describePlans(all: Plan[]): Record<string, string> {
   };
   /** Used only to tell two otherwise identical descriptions apart: what it costs, or how much slower it is. */
   const fastest = Math.min(...plans.map((p) => p.totalMinutes));
-  const extra = (p: Plan): string[] => (p.overageCost > 0 ? [`+$${p.overageCost}`] : Math.round(p.totalMinutes - fastest) >= 1 ? [`${Math.round(p.totalMinutes - fastest)} min slower`] : []);
+  const extra = (p: Plan): string[] => (showCost && p.overageCost > 0 ? [`+$${p.overageCost}`] : Math.round(p.totalMinutes - fastest) >= 1 ? [`${Math.round(p.totalMinutes - fastest)} min slower`] : []);
 
   const seen = new Set<string>();
   for (const p of plans) {

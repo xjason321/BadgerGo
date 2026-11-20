@@ -76,3 +76,20 @@ describe("describePlans", () => {
     expect(protectedShare(plan({ id: "a", stops: ["a", "b"], total: 1 }))).toBeNull();
   });
 });
+
+describe("without swaps (cost hidden)", () => {
+  const plans = () => [plan({ id: "quick", stops: ["a", "b"], total: 10, cost: 8 }), plan({ id: "free1", stops: ["a", "c"], total: 13, cost: 0 }), plan({ id: "free2", stops: ["a", "d"], total: 16, cost: 0 })];
+  it("never mentions free, cheapest or dollar amounts", () => {
+    const d = describePlans(plans(), { showCost: false });
+    expect(Object.values(d).join(" | ")).not.toMatch(/free|cheap|\$/i);
+    expect(d.quick).toMatch(/^Fastest/);
+  });
+  it("still tells identical routes apart, by minutes", () => {
+    const d = describePlans([plan({ id: "x", stops: ["a", "b"], total: 10, cost: 8 }), plan({ id: "y", stops: ["a", "b"], total: 14, cost: 8 })], { showCost: false });
+    expect(d.x).not.toBe(d.y);
+    expect(Object.values(d).join()).not.toMatch(/\$/);
+  });
+  it("keeps cost wording by default", () => {
+    expect(describePlans(plans()).free1).toMatch(/free/i);
+  });
+});

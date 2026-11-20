@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { CloseIcon } from "./icons";
+import { InstallGuide } from "./InstallGuide";
 
 const ext = { target: "_blank", rel: "noopener noreferrer" } as const;
 
@@ -23,6 +24,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="about-body">
+          <InstallGuide />
           <h3>Data &amp; services</h3>
           <ul>
             <li><b>Bike and dock availability</b> comes from the public <a href="https://www.bcycle.com/gbfs" {...ext}>BCycle GBFS feed</a> for <a href="https://madison.bcycle.com/" {...ext}>Madison BCycle</a>. BCycle and the BCycle logo belong to BCycle, LLC.</li>

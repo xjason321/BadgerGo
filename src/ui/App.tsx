@@ -27,7 +27,6 @@ import { addRecent, isSaved, readPlaces, rememberable, toggleSaved, toStored, wr
 import { DockMenu } from "./DockMenu";
 import { PencilIcon, ShareIcon } from "./icons";
 import { AboutDialog } from "./AboutDialog";
-import { InstallTip } from "./InstallTip";
 import { useBikeTimer } from "./useBikeTimer";
 import { editChain, type DockAction } from "../core/dockActions";
 import { PlanCard } from "./PlanCard";
@@ -798,7 +797,6 @@ export function App() {
           <button className="resume-x" onClick={dismissResume} aria-label="Dismiss">✕</button>
         </div>
       )}
-      {fitForm && !ride.active && <InstallTip />}
       <aside ref={panelEl} className={`panel${fitForm ? " fit" : ""}${dragH != null || formDrag != null ? " dragging" : ""}${fitForm && formHidden ? " hidden-form" : ""}${plans.length && !ride.active ? " show-routes" : ""}${slideDrag != null ? " sliding" : ""}`} style={fitForm ? ({ transform: `translateY(${formDrag ?? (formHidden ? hiddenY : 0)}px)` } as React.CSSProperties) : levels && slidingRoutes ? ({ transform: `translateY(${slideDrag ?? levels[detail]}px)`, ["--slide-y" as string]: `${slideDrag ?? levels[detail]}px` } as React.CSSProperties) : undefined}>
         {infoBtn("on-desktop")}
         <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>

@@ -21,7 +21,7 @@
 Anonymous usage counts, shown at `https://badgergo.app/analytics` (anyone with the link can open it; it is marked `noindex`).
 
 - **What is counted:** per day, how many devices opened the app (unique over 1/7/30/90 days), new devices, devices open by hour, device kind, browser vs Home Screen app, and counts of a few features (routes planned, rides started, shares, edits, timer, alerts, nearest bike/dock). No identifiers, places, or routes are sent. Browsers with Do Not Track / Global Privacy Control on, automated browsers and bots are not counted.
-- **Two deploys, on purpose:** the site is built and deployed by Cloudflare from GitHub (Node 22, pinned in `.node-version` because wrangler needs it); the stats Worker is deployed by hand with `npm run deploy:stats`. Its config is `wrangler.stats.jsonc`, not `wrangler.jsonc`, so the site's `wrangler deploy` never picks it up.
+- **Two deploys, on purpose:** the site is built and deployed by Cloudflare from GitHub (Node 22, pinned in `.node-version` because wrangler needs it); the stats Worker is deployed by hand with `npm run deploy:stats`. The site's config is `wrangler.jsonc` (assets from `dist/`); the stats Worker's is `wrangler.stats.jsonc`. Don't swap them: Cloudflare's "Retry build" rebuilds the old commit, so after fixing a build push a new commit instead.
 - **How:** a separate Cloudflare Worker (`worker/`, config in `wrangler.stats.jsonc`) on the route `badgergo.app/api/*` keeps the counts in a SQLite Durable Object. The site itself stays static. The page and the reporting code live in `src/analytics/` and `src/ui/usage.ts`.
 - **Deploy the counter once** (the zone `badgergo.app` must be on your Cloudflare account):
   ```

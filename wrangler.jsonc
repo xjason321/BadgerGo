@@ -1,0 +1,10 @@
+// The SITE: Cloudflare's build runs `npx wrangler deploy` after `npm run build` and this file tells it to publish
+// ./dist (the app, /analytics, the headers file) as static assets on the Worker named "badgergo".
+// The stats Worker (usage counts, analytics data, bike-timer pushes) is a different Worker with its own config,
+// wrangler.stats.jsonc, deployed by hand with `npm run deploy:stats`. Never put its settings here.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "badgergo",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./dist", "not_found_handling": "single-page-application" }
+}

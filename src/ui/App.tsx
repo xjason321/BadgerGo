@@ -60,6 +60,8 @@ export function App() {
   // Minutes still free on the bike you're on (typed as text so the box can be cleared while editing).
   const [leftText, setLeftText] = useState("20");
   const minutesLeft = leftText.trim() !== "" && Number.isFinite(Number(leftText)) ? Math.max(0, Math.min(STUDENT_PLAN.freeMinutes, Math.round(Number(leftText)))) : 20;
+  // Without swaps there is just the one ride, so the first-dock limit doesn't apply: the whole free window counts.
+  const firstLeft = swapsOn ? minutesLeft : STUDENT_PLAN.freeMinutes;
   const [prefs, setPrefs] = useState<RoadPrefs>(DEFAULT_PREFS);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState(0);
@@ -164,7 +166,7 @@ export function App() {
 
   // What the current routes were computed from: Find routes stays off until one of these changes.
   const sigOf = (o: Place | null, d: Place | null) =>
-    JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, haveBike, haveBike ? minutesLeft : 0, prefs]);
+    JSON.stringify([o && [o.lat, o.lon], d && [d.lat, d.lon], swapsOn, swapsOn ? maxRide : 0, haveBike, haveBike ? firstLeft : 0, prefs]);
   const [doneSig, setDoneSig] = useState("");
   useEffect(() => { if (strip.current) strip.current.scrollLeft = 0; }, [plans]);
   const goBack = () => { setEditing(false); setPlans([]); setSelected(0); setBackup(""); setStatus(""); };
@@ -505,7 +507,7 @@ export function App() {
           maxRideMinutes: limit,
           maxSwaps: swapsOn ? Infinity : 0,
           startWithBike: haveBike,
-          startMinutesLeft: minutesLeft,
+          startMinutesLeft: firstLeft,
           refineRide: prefs.strict && prefs.traffic < KINDS.length - 1 ? strictRefiner(provider, prefs.traffic) : undefined,
         });
       } catch (e) { planError = e as Error; }
@@ -603,7 +605,7 @@ export function App() {
     setStatus("Updating your route…");
     try {
       const provider = new FallbackProvider(new ValhallaProvider(prefs), new OsrmProvider());
-      let np = await buildCustomPlan(origin, destination, chain, provider, { maxRideMinutes: swapsOn ? maxRide : STUDENT_PLAN.freeMinutes, startMinutesLeft: minutesLeft });
+      let np = await buildCustomPlan(origin, destination, chain, provider, { maxRideMinutes: swapsOn ? maxRide : STUDENT_PLAN.freeMinutes, startMinutesLeft: firstLeft });
       try { np = { ...np, roads: await analyzePlan(np) }; } catch { /* road types are a bonus */ }
       setPlans((prev) => [np, ...prev.filter((p) => p.id !== "custom")]);
       setSelected(0);
@@ -855,7 +857,7 @@ export function App() {
           <div className="advanced form-only">
             <button className="adv-toggle" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>
               <span>Advanced options</span>
-              <span className="adv-sum">{haveBike ? `on a bike, docks within ${minutesLeft} min · ` : ""}{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
+              <span className="adv-sum">{haveBike ? (swapsOn ? `on a bike, docks within ${minutesLeft} min · ` : "on a bike · ") : ""}{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
               <svg className={`chev${advanced ? " open" : ""}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
             {advanced && (
@@ -865,8 +867,8 @@ export function App() {
             <label className="check bike-row">
               <input type="checkbox" checked={haveBike} onChange={(e) => setHaveBike(e.target.checked)} />
               <span className="bike-text">
-                <span className="nw">I'm already on a bike{haveBike ? "." : ""}</span>
-                {haveBike && (
+                <span className="nw">I'm already on a bike{haveBike && swapsOn ? "." : ""}</span>
+                {haveBike && swapsOn && (
                   <span className="nw">
                     {" Dock within "}
                     <input className="left-input" type="number" inputMode="numeric" min={0} max={STUDENT_PLAN.freeMinutes} step={1} value={leftText} aria-label="Free minutes left on your bike"

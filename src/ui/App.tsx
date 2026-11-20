@@ -855,7 +855,7 @@ export function App() {
           <div className="advanced form-only">
             <button className="adv-toggle" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>
               <span>Advanced options</span>
-              <span className="adv-sum">{haveBike ? `on a bike, ${minutesLeft} min left · ` : ""}{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
+              <span className="adv-sum">{haveBike ? `on a bike, docks within ${minutesLeft} min · ` : ""}{swapsOn ? `swaps up to ${maxRide} min` : "no swaps"}</span>
               <svg className={`chev${advanced ? " open" : ""}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
             {advanced && (
@@ -865,13 +865,13 @@ export function App() {
             <label className="check bike-row">
               <input type="checkbox" checked={haveBike} onChange={(e) => setHaveBike(e.target.checked)} />
               <span>
-                I'm already on a bike
+                I'm already on a bike{haveBike ? "," : ""}
                 {haveBike && (
                   <>
-                    {" with "}
+                    {" look for docks within "}
                     <input className="left-input" type="number" inputMode="numeric" min={0} max={STUDENT_PLAN.freeMinutes} step={1} value={leftText} aria-label="Free minutes left on your bike"
                       onChange={(e) => setLeftText(e.target.value)} onBlur={() => setLeftText(String(minutesLeft))} onFocus={(e) => e.target.select()} />
-                    {" mins left"}
+                    {" mins"}
                   </>
                 )}
               </span>

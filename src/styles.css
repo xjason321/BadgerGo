@@ -270,6 +270,8 @@ button.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
   .panel.show-routes .plans { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 14px 6px; scroll-padding-left: 14px; overscroll-behavior-x: contain; scrollbar-width: none; }
   .panel.show-routes .plans::-webkit-scrollbar { display: none; }
   .panel.show-routes .plan { flex: none; width: calc(100% - 44px); margin-bottom: 0; scroll-snap-align: start; scroll-snap-stop: always; align-self: flex-start; }
+  /* One route: it fills the row, from the Back button's edge to the Start button's edge. */
+  .panel.show-routes .plans.single .plan { width: 100%; }
 }
 
 /* While a ride is on, the whole menu is out of the way; ending the ride brings it back. */

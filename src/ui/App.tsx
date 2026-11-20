@@ -971,7 +971,7 @@ export function App() {
               <button className="strip-arrow left" onClick={() => step(-1)} disabled={selected === 0} aria-label="Previous route">‹</button>
             )}
             <ul
-              className="plans"
+              className={`plans${editing || plans.length === 1 ? " single" : ""}`}
               ref={strip}
               onScroll={onStripScroll}
               onTouchStart={(e) => { touch.current = (e.target as Element).closest(".tile") ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY, vert: false }; }} // grabbing a dock tile reorders; it must not slide the sheet
